@@ -31,6 +31,13 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Ensure VERSION
+        run: |
+          if [ ! -s VERSION ]; then
+            echo "v1.0.0-rc.37" > VERSION
+          fi
+          echo "Building version: $(cat VERSION)"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
