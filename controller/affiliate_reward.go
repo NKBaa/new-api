@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -54,7 +55,7 @@ func AddAffiliateReward(c *gin.Context) {
 	}
 
 	if !alreadyApplied {
-		model.RecordLog(req.UserID, model.LogTypeSystem, fmt.Sprintf("邀请用户充值奖励，增加邀请额度: %d", req.RewardQuota))
+		model.RecordLog(req.UserID, model.LogTypeSystem, fmt.Sprintf("邀请用户充值奖励，增加邀请额度: %s", logger.LogQuota(req.RewardQuota)))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success":         true,
