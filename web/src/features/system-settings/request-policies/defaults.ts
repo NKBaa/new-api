@@ -41,9 +41,14 @@ export type FilteringSettings = Pick<
   SecuritySettings,
   'CheckSensitiveEnabled' | 'CheckSensitiveOnPromptEnabled' | 'SensitiveWords'
 >
+export type ErrorMappingSettings = {
+  ErrorSanitizationEnabled: boolean
+  ErrorMappingRules: string
+}
 export type RequestPolicySettings = RetrySettings &
   HealthSettings &
   FilteringSettings &
+  ErrorMappingSettings &
   Pick<ChannelAffinitySettings, keyof ChannelAffinitySettings>
 
 export const defaultRequestPolicySettings: RequestPolicySettings = {
@@ -69,4 +74,6 @@ export const defaultRequestPolicySettings: RequestPolicySettings = {
   CheckSensitiveEnabled: false,
   CheckSensitiveOnPromptEnabled: false,
   SensitiveWords: '',
+  ErrorSanitizationEnabled: true,
+  ErrorMappingRules: '',
 }

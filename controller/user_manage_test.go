@@ -490,14 +490,20 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 	user := model.User{Username: "concurrent-quota", Quota: 1000}
 	require.NoError(t, db.Create(&user).Error)
 	var ready sync.WaitGroup
-	ready.Add(2)
 	release := make(chan struct{})
-	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:concurrent_quota_start", func(tx *gorm.DB) {
-		if tx.Statement.Table == "users" {
-			ready.Done()
-			<-release
-		}
-	}))
+	isRowLockingDB := !common.UsingMainDatabase(common.DatabaseTypeSQLite)
+	if isRowLockingDB {
+		ready.Add(2)
+		require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:concurrent_quota_start", func(tx *gorm.DB) {
+			if tx.Statement.Table == "users" {
+				ready.Done()
+				<-release
+			}
+		}))
+		defer func() {
+			_ = db.Callback().Query().Remove("test:concurrent_quota_start")
+		}()
+	}
 	type result struct {
 		adjustment *model.UserQuotaAdjustment
 		err        error
@@ -510,8 +516,10 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 			results <- result{adjustment, err, value}
 		}(value)
 	}
-	ready.Wait()
-	close(release)
+	if isRowLockingDB {
+		ready.Wait()
+		close(release)
+	}
 	var committed []model.UserQuotaAdjustment
 	for range 2 {
 		result := <-results
@@ -525,7 +533,6 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 		assert.Equal(t, result.value, result.adjustment.After-result.adjustment.Before)
 		committed = append(committed, *result.adjustment)
 	}
-	require.NoError(t, db.Callback().Query().Remove("test:concurrent_quota_start"))
 	require.NotEmpty(t, committed)
 	sort.Slice(committed, func(i, j int) bool { return committed[i].Before < committed[j].Before })
 	balance := 1000

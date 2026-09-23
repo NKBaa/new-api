@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm, type Resolver } from 'react-hook-form'
+import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -47,6 +47,9 @@ const schema = z.object({
   enabled: z.boolean(),
   minQuota: z.coerce.number().int().min(0),
   maxQuota: z.coerce.number().int().min(0),
+  requireTopUp: z.boolean(),
+  maxCheckinPerIP: z.coerce.number().int().min(0),
+  blockAutomatedUA: z.boolean(),
 })
 
 type Values = z.infer<typeof schema>
@@ -58,6 +61,9 @@ export function CheckinSettingsSection({
     enabled: boolean
     minQuota: number
     maxQuota: number
+    requireTopUp: boolean
+    maxCheckinPerIP: number
+    blockAutomatedUA: boolean
   }
 }) {
   const { t } = useTranslation()
@@ -69,11 +75,18 @@ export function CheckinSettingsSection({
       enabled: defaultValues.enabled,
       minQuota: defaultValues.minQuota,
       maxQuota: defaultValues.maxQuota,
+      requireTopUp: defaultValues.requireTopUp,
+      maxCheckinPerIP: defaultValues.maxCheckinPerIP,
+      blockAutomatedUA: defaultValues.blockAutomatedUA,
     },
   })
 
   const { isDirty, isSubmitting } = form.formState
-  const enabled = form.watch('enabled')
+  const enabled = useWatch({
+    control: form.control,
+    name: 'enabled',
+    defaultValue: defaultValues.enabled,
+  })
 
   async function onSubmit(values: Values) {
     const updates: Array<{ key: string; value: string }> = []
@@ -96,6 +109,27 @@ export function CheckinSettingsSection({
       updates.push({
         key: 'checkin_setting.max_quota',
         value: String(values.maxQuota),
+      })
+    }
+
+    if (values.requireTopUp !== defaultValues.requireTopUp) {
+      updates.push({
+        key: 'checkin_setting.require_topup',
+        value: String(values.requireTopUp),
+      })
+    }
+
+    if (values.maxCheckinPerIP !== defaultValues.maxCheckinPerIP) {
+      updates.push({
+        key: 'checkin_setting.max_checkin_per_ip',
+        value: String(values.maxCheckinPerIP),
+      })
+    }
+
+    if (values.blockAutomatedUA !== defaultValues.blockAutomatedUA) {
+      updates.push({
+        key: 'checkin_setting.block_automated_ua',
+        value: String(values.blockAutomatedUA),
       })
     }
 
@@ -146,51 +180,125 @@ export function CheckinSettingsSection({
           />
 
           {enabled && (
-            <div className='grid gap-6 sm:grid-cols-2'>
+            <>
+              <div className='grid gap-6 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='minQuota'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Minimum check-in quota')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          min={0}
+                          placeholder={t('1000')}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Minimum quota amount awarded for check-in')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='maxQuota'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Maximum check-in quota')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          min={0}
+                          placeholder={t('10000')}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Maximum quota amount awarded for check-in')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
-                name='minQuota'
+                name='requireTopUp'
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Minimum check-in quota')}</FormLabel>
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Require top-up or code redemption')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Only allow users who have made a top-up or redeemed a card code to check in, effectively stopping multi-account bot farms'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
                     <FormControl>
-                      <Input
-                        type='number'
-                        min={0}
-                        placeholder={t('1000')}
-                        {...field}
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending || isSubmitting}
                       />
                     </FormControl>
-                    <FormDescription>
-                      {t('Minimum quota amount awarded for check-in')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
+                  </SettingsSwitchItem>
                 )}
               />
 
               <FormField
                 control={form.control}
-                name='maxQuota'
+                name='blockAutomatedUA'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Block automated script User-Agents')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Block automated requests from Python-requests, Axios, Curl, and other common script libraries'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending || isSubmitting}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='maxCheckinPerIP'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Maximum check-in quota')}</FormLabel>
+                    <FormLabel>{t('Max check-ins per IP (per day)')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
                         min={0}
-                        placeholder={t('10000')}
+                        placeholder='0'
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Maximum quota amount awarded for check-in')}
+                      {t(
+                        'Maximum check-ins allowed per client IP per day. Set to 0 for unlimited (e.g. 1 to prevent mass-switching accounts on one IP)'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
+            </>
           )}
         </SettingsForm>
       </Form>

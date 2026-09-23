@@ -26,10 +26,14 @@ import {
 } from 'react'
 
 import {
+  clearUserThemeModified,
+  isUserThemeModified,
+  markUserThemeModified,
   readThemePreference,
   THEME_STORAGE_KEYS,
   writeThemePreference,
 } from '@/lib/theme-storage'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 type Theme = 'dark' | 'light' | 'system'
 type ResolvedTheme = Exclude<Theme, 'system'>
@@ -78,12 +82,32 @@ export function ThemeProvider({
   storageKey = THEME_STORAGE_KEYS.mode,
   ...props
 }: ThemeProviderProps) {
-  const [theme, _setTheme] = useState<Theme>(() =>
-    readThemePreference(storageKey, THEMES, defaultTheme)
+  const defaultThemeSettings = useSystemConfigStore(
+    (state) => state.config.defaultThemeSettings
   )
+  const systemDefaultTheme =
+    defaultThemeSettings?.theme && THEMES.has(defaultThemeSettings.theme)
+      ? defaultThemeSettings.theme
+      : defaultTheme
+
+  const [theme, _setTheme] = useState<Theme>(() => {
+    if (isUserThemeModified()) {
+      return readThemePreference(storageKey, THEMES, systemDefaultTheme)
+    }
+    return systemDefaultTheme
+  })
+
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
     resolveTheme(theme)
   )
+
+  const [prevSystemDefaultTheme, setPrevSystemDefaultTheme] = useState(systemDefaultTheme)
+  if (prevSystemDefaultTheme !== systemDefaultTheme) {
+    setPrevSystemDefaultTheme(systemDefaultTheme)
+    if (!isUserThemeModified() && systemDefaultTheme && systemDefaultTheme !== theme) {
+      _setTheme(systemDefaultTheme)
+    }
+  }
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -105,6 +129,7 @@ export function ThemeProvider({
 
   const setTheme = useCallback(
     (theme: Theme) => {
+      markUserThemeModified()
       writeThemePreference(storageKey, theme)
       _setTheme(theme)
     },
@@ -112,19 +137,20 @@ export function ThemeProvider({
   )
 
   const resetTheme = useCallback(() => {
+    clearUserThemeModified()
     writeThemePreference(storageKey, null)
-    _setTheme(defaultTheme)
-  }, [defaultTheme, storageKey])
+    _setTheme(systemDefaultTheme)
+  }, [storageKey, systemDefaultTheme])
 
   const contextValue = useMemo(
     () => ({
-      defaultTheme,
+      defaultTheme: systemDefaultTheme,
       resolvedTheme,
       resetTheme,
       theme,
       setTheme,
     }),
-    [defaultTheme, resolvedTheme, resetTheme, theme, setTheme]
+    [systemDefaultTheme, resolvedTheme, resetTheme, theme, setTheme]
   )
 
   return (
@@ -142,3 +168,4 @@ export const useTheme = () => {
 
   return context
 }
+

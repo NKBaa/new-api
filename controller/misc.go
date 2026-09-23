@@ -105,11 +105,14 @@ func GetStatus(c *gin.Context) {
 		"api_info_enabled":      cs.ApiInfoEnabled,
 		"uptime_kuma_enabled":   cs.UptimeKumaEnabled,
 		"announcements_enabled": cs.AnnouncementsEnabled,
-		"faq_enabled":           cs.FAQEnabled,
+		"faq_enabled":              cs.FAQEnabled,
+		"customer_service_enabled": cs.CustomerServiceEnabled,
 
 		// 模块管理配置
-		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
-		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
+		"HeaderNavModules":      common.OptionMap["HeaderNavModules"],
+		"SidebarModulesAdmin":   common.OptionMap["SidebarModulesAdmin"],
+		"affiliate_description": common.OptionMap["AffiliateDescription"],
+		"default_theme_settings": common.OptionMap["DefaultThemeSettings"],
 
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
@@ -137,6 +140,9 @@ func GetStatus(c *gin.Context) {
 	}
 	if cs.FAQEnabled {
 		data["faq"] = console_setting.GetFAQ()
+	}
+	if cs.CustomerServiceEnabled {
+		data["customer_service"] = console_setting.GetCustomerService()
 	}
 
 	// Add enabled custom OAuth providers

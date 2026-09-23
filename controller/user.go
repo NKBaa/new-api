@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -214,6 +216,99 @@ func writeLoginResponse(c *gin.Context, user *model.User, bundle *service.AuthBu
 	})
 }
 
+const registerRateLimitScript = `
+local key = KEYS[1]
+local windowStart = tonumber(ARGV[1])
+local nowMs = tonumber(ARGV[2])
+local maxCount = tonumber(ARGV[3])
+local member = ARGV[4]
+local expireSecs = tonumber(ARGV[5])
+
+redis.call('ZREMRANGEBYSCORE', key, '-inf', windowStart)
+local currentCount = redis.call('ZCARD', key)
+if currentCount < maxCount then
+    redis.call('ZADD', key, nowMs, member)
+    redis.call('EXPIRE', key, expireSecs)
+    return 1
+else
+    return 0
+end
+`
+
+var (
+	memIPRegisterMutex sync.Mutex
+	memIPRegisterTimes = make(map[string][]time.Time)
+)
+
+func reserveIPRegister(clientIP string, maxCount int) (bool, func()) {
+	if maxCount <= 0 {
+		return true, func() {}
+	}
+	cutoffDuration := 24 * time.Hour
+	now := time.Now()
+
+	if common.RedisEnabled && common.RDB != nil {
+		ctx := context.Background()
+		key := fmt.Sprintf("register:ip:sliding:%s", clientIP)
+		nowMs := now.UnixMilli()
+		windowStartMs := now.Add(-cutoffDuration).UnixMilli()
+		member := fmt.Sprintf("%d-%d", nowMs, now.UnixNano())
+
+		res, err := common.RDB.Eval(ctx, registerRateLimitScript, []string{key}, windowStartMs, nowMs, maxCount, member, int64(25*3600)).Result()
+		if err == nil {
+			if countAllowed, ok := res.(int64); ok && countAllowed == 1 {
+				release := func() {
+					_ = common.RDB.ZRem(context.Background(), key, member).Err()
+				}
+				return true, release
+			}
+			return false, func() {}
+		}
+	}
+
+	memIPRegisterMutex.Lock()
+	defer memIPRegisterMutex.Unlock()
+
+	cutoff := now.Add(-cutoffDuration)
+	times := memIPRegisterTimes[clientIP]
+	validTimes := make([]time.Time, 0, len(times)+1)
+	for _, t := range times {
+		if t.After(cutoff) {
+			validTimes = append(validTimes, t)
+		}
+	}
+
+	if len(validTimes) >= maxCount {
+		memIPRegisterTimes[clientIP] = validTimes
+		return false, func() {}
+	}
+
+	validTimes = append(validTimes, now)
+	memIPRegisterTimes[clientIP] = validTimes
+
+	// Clean up stale IPs if map grows large to prevent memory leak
+	if len(memIPRegisterTimes) > 2000 {
+		for ip, ts := range memIPRegisterTimes {
+			if len(ts) == 0 || ts[len(ts)-1].Before(cutoff) {
+				delete(memIPRegisterTimes, ip)
+			}
+		}
+	}
+
+	release := func() {
+		memIPRegisterMutex.Lock()
+		defer memIPRegisterMutex.Unlock()
+		cur := memIPRegisterTimes[clientIP]
+		for i := len(cur) - 1; i >= 0; i-- {
+			if cur[i].Equal(now) {
+				memIPRegisterTimes[clientIP] = append(cur[:i], cur[i+1:]...)
+				break
+			}
+		}
+	}
+	return true, release
+}
+
 func Register(c *gin.Context) {
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
@@ -223,6 +318,22 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
+
+	var regRelease func()
+	if common.MaxRegisterNumPerIP > 0 {
+		allowed, release := reserveIPRegister(c.ClientIP(), common.MaxRegisterNumPerIP)
+		if !allowed {
+			common.ApiErrorI18n(c, i18n.MsgUserRegisterIPLimitReached)
+			return
+		}
+		regRelease = release
+		defer func() {
+			if regRelease != nil {
+				regRelease()
+			}
+		}()
+	}
+
 	var user model.User
 	err := common.DecodeJson(c.Request.Body, &user)
 	if err != nil {
@@ -327,6 +438,7 @@ func Register(c *gin.Context) {
 		}
 	}
 
+	regRelease = nil // 注册成功，保留并提交 IP 计数预留
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

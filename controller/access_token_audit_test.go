@@ -437,9 +437,14 @@ func (releasedAuditLog) TableName() string { return "logs" }
 func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 	t.Helper()
 	if kind == "sqlite" {
-		path := t.TempDir() + "/audit.db"
+		path := t.TempDir() + "/audit.db?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"
 		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			if sqlDB, err := db.DB(); err == nil && sqlDB != nil {
+				_ = sqlDB.Close()
+			}
+		})
 		return db, path
 	}
 	require.NotEmpty(t, dsn)
@@ -666,6 +671,17 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 						t.Setenv("SQL_DSN", isolatedDSN)
 					}
 					model.DB, model.LOG_DB = db, db
+					var dbsToClose []*gorm.DB
+					dbsToClose = append(dbsToClose, db)
+					t.Cleanup(func() {
+						for _, d := range dbsToClose {
+							if d != nil {
+								if sqlDB, err := d.DB(); err == nil && sqlDB != nil {
+									_ = sqlDB.Close()
+								}
+							}
+						}
+					})
 					common.SetDatabaseTypes(tc.typ, tc.typ)
 					versionSQL := "SELECT version()"
 					if tc.name == "sqlite" {
@@ -682,8 +698,11 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 					}
 					for range 2 {
 						require.NoError(t, model.InitDB())
+						dbsToClose = append(dbsToClose, model.DB)
 						require.NoError(t, model.InitLogDB())
+						dbsToClose = append(dbsToClose, model.LOG_DB)
 					}
+					db = model.DB
 					if !upgrade {
 						require.NoError(t, db.Create(&model.User{Username: "fresh-owner", Password: "placeholder", AffCode: "fresh-aff"}).Error)
 					}

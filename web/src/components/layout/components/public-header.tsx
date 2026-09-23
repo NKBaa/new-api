@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { Dialog } from '@/components/dialog'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
@@ -98,6 +99,26 @@ export function PublicHeader(props: PublicHeaderProps) {
   const isAuthenticated = !!user
   const displaySiteName = customSiteName || systemName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+  const { customization } = useThemeCustomization()
+
+  const navbarRadiusClass = useMemo(() => {
+    const nr = customization.navbarRadius ?? 'default'
+    switch (nr) {
+      case 'full':
+        return 'rounded-full'
+      case 'lg':
+        return 'rounded-[12px]'
+      case 'md':
+        return 'rounded-[6px]'
+      case 'none':
+        return 'rounded-none'
+      case 'auto':
+        return 'rounded-[var(--radius)]'
+      case 'default':
+      default:
+        return 'rounded-[16px]'
+    }
+  }, [customization.navbarRadius])
 
   let logoContent: ReactNode = (
     <HeaderLogo
@@ -210,7 +231,10 @@ export function PublicHeader(props: PublicHeaderProps) {
             className={cn(
               'flex items-center justify-between gap-2 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
               scrolled
-                ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
+                ? cn(
+                    'bg-background/60 ring-border/50 h-12 pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]',
+                    navbarRadiusClass
+                  )
                 : 'h-16 px-2'
             )}
           >

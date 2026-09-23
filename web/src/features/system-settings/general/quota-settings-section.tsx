@@ -55,6 +55,8 @@ const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  AffiliateCommissionRate: z.coerce.number().min(0).max(100).optional(),
+  AffiliateDescription: z.string().optional(),
   TopUpLink: z.string(),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
@@ -278,6 +280,63 @@ export function QuotaSettingsSection({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name='AffiliateCommissionRate'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Affiliate Commission Rate (%)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='any'
+                      min='0'
+                      max='100'
+                      placeholder='0'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Commission percentage credited to the inviter when the invitee tops up. Enter 7 for 7%, 0 to disable.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='AffiliateDescription'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Referral Program Description')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t(
+                          'You can get rewards after users register through your referral link. (Leave blank to use system default)'
+                        )}
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Custom description text displayed on the user wallet referral card. Leave blank to use system default.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
 
             <SettingsFormGridItem span='full'>
               <FormField

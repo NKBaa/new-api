@@ -179,8 +179,59 @@ function buildCurlCommand(args: {
     `curl ${args.endpoint} \\`,
     '  -H "Content-Type: application/json" \\',
     `  -H "Authorization: Bearer ${args.apiKey}" \\`,
-    `  -d '{"model":"${args.model}","messages":[{"role":"user","content":"Say hello in one sentence."}]}'`,
+    "  -d '{",
+    `    "model": "${args.model}",`,
+    '    "messages": [{"role": "user", "content": "Hello!"}]',
+    "  }'",
   ].join('\n')
+}
+
+type ClientTab = 'curl' | 'python' | 'cursor' | 'cherry' | 'claude'
+
+function buildClientSnippet(args: {
+  tab: ClientTab
+  endpoint: string
+  apiKey: string
+  model: string
+}): string {
+  const base = args.endpoint.replace(/\/chat\/completions$/, '')
+  switch (args.tab) {
+    case 'python':
+      return [
+        'from openai import OpenAI',
+        '',
+        'client = OpenAI(',
+        `    base_url="${base}",`,
+        `    api_key="${args.apiKey}",`,
+        ')',
+        '',
+        'response = client.chat.completions.create(',
+        `    model="${args.model}",`,
+        '    messages=[{"role": "user", "content": "Hello!"}],',
+        ')',
+        'print(response.choices[0].message.content)',
+      ].join('\n')
+    case 'cursor':
+      return [
+        `Base URL: ${base}`,
+        `API Key: ${args.apiKey}`,
+        `Model: ${args.model}`,
+      ].join('\n')
+    case 'cherry':
+      return [
+        `API 域名: ${base}`,
+        `API 密钥: ${args.apiKey}`,
+        `推荐模型: ${args.model}`,
+      ].join('\n')
+    case 'claude':
+      return [
+        `export ANTHROPIC_BASE_URL="${base}"`,
+        `export ANTHROPIC_API_KEY="${args.apiKey}"`,
+      ].join('\n')
+    case 'curl':
+    default:
+      return buildCurlCommand(args)
+  }
 }
 
 function SetupGuideBackdrop(props: { compact?: boolean }) {
@@ -188,17 +239,15 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
     <>
       <div
         className={cn(
-          'pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_48%_120%_at_78%_0%,color-mix(in_oklch,var(--overview-accent-1)_14%,transparent)_0%,transparent_62%),linear-gradient(112deg,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-2)_6%)_0%,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-3)_6%)_48%,color-mix(in_oklch,var(--background)_90%,var(--overview-accent-1)_10%)_100%)] dark:opacity-60',
-          props.compact
-            ? '[mask-image:linear-gradient(90deg,black_0%,black_48%,transparent_74%)] opacity-55'
-            : 'opacity-85'
+          'pointer-events-none absolute inset-0 bg-muted/20 dark:bg-card/40',
+          props.compact ? 'opacity-40' : 'opacity-70'
         )}
         aria-hidden='true'
       />
       <div
         className={cn(
-          'text-foreground/5 dark:text-foreground/8 pointer-events-none absolute inset-y-0 right-0 hidden overflow-hidden font-mono sm:block',
-          props.compact ? 'w-1/2 opacity-45' : 'w-[58%] opacity-75'
+          'text-foreground/5 dark:text-foreground/5 pointer-events-none absolute inset-y-0 right-0 hidden overflow-hidden font-mono sm:block',
+          props.compact ? 'w-1/2 opacity-30' : 'w-[58%] opacity-50'
         )}
         aria-hidden='true'
       >
@@ -213,10 +262,6 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
           {SETUP_GUIDE_CODE_PATTERN}
         </pre>
       </div>
-      <div
-        className='from-background/35 to-background/70 dark:from-background/20 dark:to-background/80 pointer-events-none absolute inset-0 bg-linear-to-b via-transparent'
-        aria-hidden='true'
-      />
     </>
   )
 }
@@ -278,38 +323,56 @@ function StartStepItem(props: {
   )
 }
 
+const CLIENT_TAB_LABELS: Record<ClientTab, string> = {
+  curl: 'Bash',
+  python: 'Python 3',
+  cursor: 'Cursor',
+  cherry: 'Cherry',
+  claude: 'Claude Code',
+}
+
 function RequestPreview(props: {
   example: RequestExample
   signals: HeroSignal[]
 }) {
   const { t } = useTranslation()
   const shouldReduceMotion = useReducedMotion()
+  const [activeTab, setActiveTab] = useState<ClientTab>('curl')
   const [isCopying, setIsCopying] = useState(false)
   const { copyToClipboard } = useCopyToClipboard({ notify: false })
-  const previewCurl = buildCurlCommand({
-    endpoint: props.example.endpoint,
-    apiKey: props.example.displayKey,
-    model: props.example.model,
-  })
-  const previewLines = previewCurl.split('\n')
+
+  const previewSnippet = useMemo(() => {
+    return buildClientSnippet({
+      tab: activeTab,
+      endpoint: props.example.endpoint,
+      apiKey: props.example.displayKey,
+      model: props.example.model,
+    })
+  }, [activeTab, props.example.endpoint, props.example.displayKey, props.example.model])
+
   const handleCopyRequest = async () => {
-    if (!props.example.keyId || isCopying) return
+    if (isCopying) return
 
     setIsCopying(true)
     try {
-      const result = await fetchTokenKey(props.example.keyId)
-      const key = result.success && result.data?.key ? result.data.key : ''
-      if (!key) {
-        handleServerError(result, t('Failed to copy to clipboard'))
-        return
+      let realKey = ''
+      if (props.example.keyId) {
+        const result = await fetchTokenKey(props.example.keyId)
+        if (result.success && result.data?.key) {
+          realKey = `sk-${result.data.key}`
+        }
+      }
+      if (!realKey) {
+        realKey = props.example.displayKey || 'sk-your-api-key'
       }
 
-      const realCurl = buildCurlCommand({
+      const snippetToCopy = buildClientSnippet({
+        tab: activeTab,
         endpoint: props.example.endpoint,
-        apiKey: `sk-${key}`,
+        apiKey: realKey,
         model: props.example.model,
       })
-      const copied = await copyToClipboard(realCurl)
+      const copied = await copyToClipboard(snippetToCopy)
       if (copied) {
         toast.success(t('Copied to clipboard'))
       } else {
@@ -322,32 +385,31 @@ function RequestPreview(props: {
     }
   }
 
+  const clientTabs: { key: ClientTab; label: string }[] = [
+    { key: 'curl', label: 'cURL' },
+    { key: 'python', label: 'Python' },
+    { key: 'cursor', label: 'Cursor' },
+    { key: 'cherry', label: 'Cherry' },
+    { key: 'claude', label: 'Claude Code' },
+  ]
+
   return (
     <motion.div
       initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
       animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
       transition={MOTION_TRANSITION.slow}
-      className='bg-background/75 relative overflow-hidden rounded-2xl border p-3 shadow-sm backdrop-blur'
+      className='bg-background/85 relative overflow-hidden rounded-2xl border border-border p-3 shadow-xs backdrop-blur'
     >
-      {!shouldReduceMotion && (
-        <motion.div
-          className='via-foreground/30 pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent to-transparent'
-          animate={{ x: ['-100%', '100%'] }}
-          transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-          aria-hidden='true'
-        />
-      )}
-
-      <div className='flex items-center justify-between gap-3 border-b pb-3'>
+      <div className='flex items-center justify-between gap-3 border-b border-border/50 pb-3'>
         <div className='flex min-w-0 items-center gap-2'>
           <IconBadge tone='info'>
             <TerminalSquare />
           </IconBadge>
           <div className='min-w-0'>
-            <div className='truncate text-sm font-medium'>
-              {t('First API request')}
+            <div className='truncate text-sm font-semibold font-mono'>
+              {t('Developer Quickstart')}
             </div>
-            <div className='text-muted-foreground truncate text-xs'>
+            <div className='text-muted-foreground truncate text-xs font-mono'>
               {props.example.ready
                 ? props.example.keyName
                 : t('Create an API key to unlock the real request')}
@@ -358,10 +420,10 @@ function RequestPreview(props: {
           <Button
             variant='outline'
             size='sm'
-            className='h-7 gap-1.5 px-2 text-xs'
+            className='h-7 gap-1.5 px-2 text-xs font-mono'
             disabled={isCopying}
             onClick={handleCopyRequest}
-            aria-label={t('Copy ready-to-run curl')}
+            aria-label={t('Copy ready-to-run config')}
           >
             <Copy data-icon='inline-start' />
             {isCopying ? t('Loading') : t('Copy')}
@@ -373,23 +435,39 @@ function RequestPreview(props: {
         )}
       </div>
 
-      <div className='bg-foreground/[0.035] my-3 rounded-xl p-3 font-mono text-xs'>
-        <div className='mb-2 flex items-center gap-1.5'>
-          <span className='bg-destructive size-2 rounded-full' />
-          <span className='bg-warning size-2 rounded-full' />
-          <span className='bg-success size-2 rounded-full' />
+      {/* 极简客户端切换标签栏 */}
+      <div className='flex items-center gap-1 overflow-x-auto pb-1 mt-3 font-mono text-[11px] border-b border-border/40'>
+        {clientTabs.map((item) => (
+          <button
+            key={item.key}
+            type='button'
+            onClick={() => setActiveTab(item.key)}
+            className={cn(
+              'rounded px-2 py-0.5 transition-colors cursor-pointer whitespace-nowrap',
+              activeTab === item.key
+                ? 'bg-foreground text-background font-semibold shadow-2xs'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className='my-3 rounded-lg border border-border/50 bg-foreground/[0.03] p-3 font-mono text-xs'>
+        <div className='mb-2 flex items-center justify-between border-b border-border/40 pb-2 text-[10px] text-muted-foreground'>
+          <div className='flex items-center gap-1.5'>
+            <span className='bg-destructive/80 size-2 rounded-full' />
+            <span className='bg-warning/80 size-2 rounded-full' />
+            <span className='bg-success/80 size-2 rounded-full' />
+          </div>
+          <span className='uppercase font-semibold tracking-wider opacity-70'>
+            {CLIENT_TAB_LABELS[activeTab]}
+          </span>
         </div>
-        <div className='flex flex-col gap-1 overflow-hidden'>
-          {previewLines.map((line) => (
-            <code
-              key={line}
-              className='text-muted-foreground truncate'
-              title={line}
-            >
-              {line}
-            </code>
-          ))}
-        </div>
+        <pre className='overflow-x-auto min-h-[145px] max-h-60 select-all font-mono text-xs text-muted-foreground/90 leading-relaxed whitespace-pre'>
+          <code>{previewSnippet}</code>
+        </pre>
       </div>
 
       <div className='grid gap-2'>
@@ -672,6 +750,26 @@ export function OverviewDashboard() {
                                 'A focused home for keys, balance, routing, and service health.'
                               )}
                             </p>
+                            <div className='mt-2.5 flex max-w-md items-center justify-between gap-3 rounded-md border border-border/80 bg-muted/20 px-3 py-1.5 font-mono text-xs shadow-2xs'>
+                              <div className='flex items-center gap-2 min-w-0 flex-1'>
+                                <span className='shrink-0 text-foreground font-semibold font-mono tracking-normal text-xs'>
+                                  API Base:
+                                </span>
+                                <span className='text-muted-foreground select-all truncate font-mono text-xs'>
+                                  {requestExample.endpoint.replace(/\/chat\/completions$/, '')}
+                                </span>
+                              </div>
+                              <button
+                                type='button'
+                                onClick={() => {
+                                  copyToClipboard(requestExample.endpoint.replace(/\/chat\/completions$/, ''))
+                                  toast.success(t('Copied to clipboard'))
+                                }}
+                                className='shrink-0 rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer'
+                              >
+                                {t('Copy')}
+                              </button>
+                            </div>
                           </div>
                           <div className='flex flex-wrap items-center gap-2'>
                             <Button

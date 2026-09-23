@@ -222,6 +222,10 @@ export interface CheckinStats {
 export interface CheckinStatusResponse {
   /** Whether check-in feature is enabled */
   enabled: boolean
+  /** Whether check-in requires prior top-up */
+  require_topup?: boolean
+  /** Whether current user has topped up or redeemed a code */
+  has_topped_up?: boolean
   /** Check-in statistics */
   stats: CheckinStats
 }

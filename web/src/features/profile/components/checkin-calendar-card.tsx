@@ -25,7 +25,7 @@ import {
   ChevronUp,
   Sparkles,
 } from 'lucide-react'
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -69,8 +69,7 @@ export function CheckinCalendarCard({
   const [checkinLoading, setCheckinLoading] = useState(false)
   const [turnstileModalVisible, setTurnstileModalVisible] = useState(false)
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
-  const [initialLoaded, setInitialLoaded] = useState(false)
-  const [collapsed, setCollapsed] = useState<boolean>(false)
+  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null)
 
   const currentMonthStr = useMemo(() => {
     const y = currentMonth.getFullYear()
@@ -122,14 +121,7 @@ export function CheckinCalendarCard({
 
   const checkedToday = checkinData?.stats?.checked_in_today === true
   const todayAward = checkinRecordsMap[todayString]
-
-  useEffect(() => {
-    if (initialLoaded) return
-    if (isLoading) return
-    if (!checkinData) return
-    setCollapsed(checkedToday)
-    setInitialLoaded(true)
-  }, [checkinData, checkedToday, initialLoaded, isLoading])
+  const collapsed = userCollapsed ?? (checkedToday && Boolean(checkinData))
 
   const shouldTriggerTurnstile = useCallback(
     (message?: string) => {
@@ -244,11 +236,25 @@ export function CheckinCalendarCard({
     )
   }
 
+  const topUpRequiredAndMissing =
+    checkinData?.require_topup === true && checkinData?.has_topped_up === false
+
   let checkinButtonLabel = t('Check in now')
   if (checkinLoading) {
     checkinButtonLabel = t('Loading...')
   } else if (checkedToday) {
     checkinButtonLabel = t('Checked in')
+  } else if (topUpRequiredAndMissing) {
+    checkinButtonLabel = t('Top-up Required')
+  }
+
+  let subtitleText = t('Check in daily to receive random quota rewards')
+  if (checkedToday && todayAward !== undefined) {
+    subtitleText = `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
+  } else if (topUpRequiredAndMissing) {
+    subtitleText = t(
+      'Daily check-in is currently available only for users who have topped up or redeemed a code'
+    )
   }
 
   return (
@@ -290,7 +296,7 @@ export function CheckinCalendarCard({
             <button
               type='button'
               className='flex min-w-0 flex-1 items-start gap-3 rounded-lg text-left whitespace-normal outline-none'
-              onClick={() => setCollapsed((v) => !v)}
+              onClick={() => setUserCollapsed(!collapsed)}
             >
               <IconBadge tone='neutral' size='lg' className='sm:size-11'>
                 <CalendarDays
@@ -318,15 +324,13 @@ export function CheckinCalendarCard({
                   </span>
                 </div>
                 <p className='text-muted-foreground mt-1 line-clamp-2 text-xs sm:text-sm'>
-                  {checkedToday && todayAward !== undefined
-                    ? `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
-                    : t('Check in daily to receive random quota rewards')}
+                  {subtitleText}
                 </p>
               </div>
             </button>
             <Button
               onClick={() => doCheckin()}
-              disabled={checkinLoading || checkedToday}
+              disabled={checkinLoading || checkedToday || topUpRequiredAndMissing}
               size='sm'
               className='w-full shrink-0 sm:w-auto'
             >

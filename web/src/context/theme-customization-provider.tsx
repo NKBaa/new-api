@@ -34,17 +34,23 @@ import {
   THEME_PRESET_VALUES,
   THEME_RADIUS_VALUES,
   THEME_SCALE_VALUES,
+  THEME_NAVBAR_RADIUS_VALUES,
   type ThemeCustomization,
   type ThemeFont,
   type ThemePreset,
   type ThemeRadius,
   type ThemeScale,
+  type ThemeNavbarRadius,
 } from '@/lib/theme-customization'
 import {
+  clearUserThemeModified,
+  isUserThemeModified,
+  markUserThemeModified,
   readThemePreference,
   THEME_STORAGE_KEYS,
   writeThemePreference,
 } from '@/lib/theme-storage'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 function applyAttribute(name: string, value: string | null) {
   if (typeof document === 'undefined') return
@@ -65,6 +71,7 @@ type ThemeCustomizationContextType = {
   setRadius: (radius: ThemeRadius) => void
   setScale: (scale: ThemeScale) => void
   setContentLayout: (contentLayout: ContentLayout) => void
+  setNavbarRadius: (navbarRadius: ThemeNavbarRadius) => void
   resetCustomization: () => void
 }
 
@@ -80,6 +87,7 @@ const FALLBACK_CONTEXT: ThemeCustomizationContextType = {
   setRadius: () => {},
   setScale: () => {},
   setContentLayout: () => {},
+  setNavbarRadius: () => {},
   resetCustomization: () => {},
 }
 
@@ -89,41 +97,119 @@ const ThemeCustomizationContext =
 export function ThemeCustomizationProvider(props: {
   children: React.ReactNode
 }) {
-  const [preset, _setPreset] = useState<ThemePreset>(() =>
-    readThemePreference<ThemePreset>(
-      THEME_STORAGE_KEYS.preset,
-      THEME_PRESET_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.preset
-    )
+  const defaultThemeSettings = useSystemConfigStore(
+    (state) => state.config.defaultThemeSettings
   )
-  const [font, _setFont] = useState<ThemeFont>(() =>
-    readThemePreference<ThemeFont>(
-      THEME_STORAGE_KEYS.font,
-      THEME_FONT_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.font
-    )
-  )
-  const [radius, _setRadius] = useState<ThemeRadius>(() =>
-    readThemePreference<ThemeRadius>(
-      THEME_STORAGE_KEYS.radius,
-      THEME_RADIUS_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.radius
-    )
-  )
-  const [scale, _setScale] = useState<ThemeScale>(() =>
-    readThemePreference<ThemeScale>(
-      THEME_STORAGE_KEYS.scale,
-      THEME_SCALE_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.scale
-    )
-  )
-  const [contentLayout, _setContentLayout] = useState<ContentLayout>(() =>
-    readThemePreference<ContentLayout>(
-      THEME_STORAGE_KEYS.contentLayout,
-      CONTENT_LAYOUT_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.contentLayout
-    )
-  )
+
+  const effectiveDefaults = useMemo<ThemeCustomization>(() => {
+    return {
+      preset:
+        defaultThemeSettings?.preset &&
+        THEME_PRESET_VALUES.has(defaultThemeSettings.preset)
+          ? defaultThemeSettings.preset
+          : DEFAULT_THEME_CUSTOMIZATION.preset,
+      font:
+        defaultThemeSettings?.font &&
+        THEME_FONT_VALUES.has(defaultThemeSettings.font)
+          ? defaultThemeSettings.font
+          : DEFAULT_THEME_CUSTOMIZATION.font,
+      radius:
+        defaultThemeSettings?.radius &&
+        THEME_RADIUS_VALUES.has(defaultThemeSettings.radius)
+          ? defaultThemeSettings.radius
+          : DEFAULT_THEME_CUSTOMIZATION.radius,
+      scale:
+        defaultThemeSettings?.scale &&
+        THEME_SCALE_VALUES.has(defaultThemeSettings.scale)
+          ? defaultThemeSettings.scale
+          : DEFAULT_THEME_CUSTOMIZATION.scale,
+      contentLayout:
+        defaultThemeSettings?.contentLayout &&
+        CONTENT_LAYOUT_VALUES.has(defaultThemeSettings.contentLayout)
+          ? defaultThemeSettings.contentLayout
+          : DEFAULT_THEME_CUSTOMIZATION.contentLayout,
+      navbarRadius:
+        defaultThemeSettings?.navbarRadius &&
+        THEME_NAVBAR_RADIUS_VALUES.has(defaultThemeSettings.navbarRadius)
+          ? defaultThemeSettings.navbarRadius
+          : DEFAULT_THEME_CUSTOMIZATION.navbarRadius,
+    }
+  }, [defaultThemeSettings])
+
+  const [preset, _setPreset] = useState<ThemePreset>(() => {
+    if (isUserThemeModified()) {
+      return readThemePreference<ThemePreset>(
+        THEME_STORAGE_KEYS.preset,
+        THEME_PRESET_VALUES,
+        effectiveDefaults.preset
+      )
+    }
+    return effectiveDefaults.preset
+  })
+  const [font, _setFont] = useState<ThemeFont>(() => {
+    if (isUserThemeModified()) {
+      return readThemePreference<ThemeFont>(
+        THEME_STORAGE_KEYS.font,
+        THEME_FONT_VALUES,
+        effectiveDefaults.font
+      )
+    }
+    return effectiveDefaults.font
+  })
+  const [radius, _setRadius] = useState<ThemeRadius>(() => {
+    if (isUserThemeModified()) {
+      return readThemePreference<ThemeRadius>(
+        THEME_STORAGE_KEYS.radius,
+        THEME_RADIUS_VALUES,
+        effectiveDefaults.radius
+      )
+    }
+    return effectiveDefaults.radius
+  })
+  const [scale, _setScale] = useState<ThemeScale>(() => {
+    if (isUserThemeModified()) {
+      return readThemePreference<ThemeScale>(
+        THEME_STORAGE_KEYS.scale,
+        THEME_SCALE_VALUES,
+        effectiveDefaults.scale
+      )
+    }
+    return effectiveDefaults.scale
+  })
+  const [contentLayout, _setContentLayout] = useState<ContentLayout>(() => {
+    if (isUserThemeModified()) {
+      return readThemePreference<ContentLayout>(
+        THEME_STORAGE_KEYS.contentLayout,
+        CONTENT_LAYOUT_VALUES,
+        effectiveDefaults.contentLayout
+      )
+    }
+    return effectiveDefaults.contentLayout
+  })
+  const [navbarRadius, _setNavbarRadius] = useState<ThemeNavbarRadius>(() => {
+    if (isUserThemeModified()) {
+      return readThemePreference<ThemeNavbarRadius>(
+        THEME_STORAGE_KEYS.navbarRadius,
+        THEME_NAVBAR_RADIUS_VALUES,
+        effectiveDefaults.navbarRadius
+      )
+    }
+    return effectiveDefaults.navbarRadius
+  })
+
+  // Adjust state during render when effectiveDefaults change and user has not explicitly modified theme
+  const [prevDefaults, setPrevDefaults] = useState(effectiveDefaults)
+  if (prevDefaults !== effectiveDefaults) {
+    setPrevDefaults(effectiveDefaults)
+    if (!isUserThemeModified()) {
+      _setPreset(effectiveDefaults.preset)
+      _setFont(effectiveDefaults.font)
+      _setRadius(effectiveDefaults.radius)
+      _setScale(effectiveDefaults.scale)
+      _setContentLayout(effectiveDefaults.contentLayout)
+      _setNavbarRadius(effectiveDefaults.navbarRadius)
+    }
+  }
 
   // Mirror state to the <body> via data-* attributes so theme-presets.css can
   // override CSS variables at the right cascade layer.
@@ -162,84 +248,132 @@ export function ThemeCustomizationProvider(props: {
     applyAttribute('data-theme-content-layout', contentLayout)
   }, [contentLayout])
 
-  const setPreset = useCallback((value: ThemePreset) => {
-    _setPreset(value)
-    writeThemePreference(
-      THEME_STORAGE_KEYS.preset,
-      value === DEFAULT_THEME_CUSTOMIZATION.preset ? null : value
-    )
+  const markUserModified = useCallback(() => {
+    markUserThemeModified()
   }, [])
 
-  const setFont = useCallback((value: ThemeFont) => {
-    _setFont(value)
-    writeThemePreference(
-      THEME_STORAGE_KEYS.font,
-      value === DEFAULT_THEME_CUSTOMIZATION.font ? null : value
-    )
-  }, [])
+  const setPreset = useCallback(
+    (value: ThemePreset) => {
+      markUserModified()
+      _setPreset(value)
+      writeThemePreference(
+        THEME_STORAGE_KEYS.preset,
+        value === effectiveDefaults.preset ? null : value
+      )
+    },
+    [markUserModified, effectiveDefaults.preset]
+  )
 
-  const setRadius = useCallback((value: ThemeRadius) => {
-    _setRadius(value)
-    writeThemePreference(
-      THEME_STORAGE_KEYS.radius,
-      value === DEFAULT_THEME_CUSTOMIZATION.radius ? null : value
-    )
-  }, [])
+  const setFont = useCallback(
+    (value: ThemeFont) => {
+      markUserModified()
+      _setFont(value)
+      writeThemePreference(
+        THEME_STORAGE_KEYS.font,
+        value === effectiveDefaults.font ? null : value
+      )
+    },
+    [markUserModified, effectiveDefaults.font]
+  )
 
-  const setScale = useCallback((value: ThemeScale) => {
-    _setScale(value)
-    writeThemePreference(
-      THEME_STORAGE_KEYS.scale,
-      value === DEFAULT_THEME_CUSTOMIZATION.scale ? null : value
-    )
-  }, [])
+  const setRadius = useCallback(
+    (value: ThemeRadius) => {
+      markUserModified()
+      _setRadius(value)
+      writeThemePreference(
+        THEME_STORAGE_KEYS.radius,
+        value === effectiveDefaults.radius ? null : value
+      )
+    },
+    [markUserModified, effectiveDefaults.radius]
+  )
 
-  const setContentLayout = useCallback((value: ContentLayout) => {
-    _setContentLayout(value)
-    writeThemePreference(
-      THEME_STORAGE_KEYS.contentLayout,
-      value === DEFAULT_THEME_CUSTOMIZATION.contentLayout ? null : value
-    )
-  }, [])
+  const setScale = useCallback(
+    (value: ThemeScale) => {
+      markUserModified()
+      _setScale(value)
+      writeThemePreference(
+        THEME_STORAGE_KEYS.scale,
+        value === effectiveDefaults.scale ? null : value
+      )
+    },
+    [markUserModified, effectiveDefaults.scale]
+  )
+
+  const setContentLayout = useCallback(
+    (value: ContentLayout) => {
+      markUserModified()
+      _setContentLayout(value)
+      writeThemePreference(
+        THEME_STORAGE_KEYS.contentLayout,
+        value === effectiveDefaults.contentLayout ? null : value
+      )
+    },
+    [markUserModified, effectiveDefaults.contentLayout]
+  )
+
+  const setNavbarRadius = useCallback(
+    (value: ThemeNavbarRadius) => {
+      markUserModified()
+      _setNavbarRadius(value)
+      writeThemePreference(
+        THEME_STORAGE_KEYS.navbarRadius,
+        value === effectiveDefaults.navbarRadius ? null : value
+      )
+    },
+    [markUserModified, effectiveDefaults.navbarRadius]
+  )
 
   const resetCustomization = useCallback(() => {
-    setPreset(DEFAULT_THEME_CUSTOMIZATION.preset)
-    setFont(DEFAULT_THEME_CUSTOMIZATION.font)
-    setRadius(DEFAULT_THEME_CUSTOMIZATION.radius)
-    setScale(DEFAULT_THEME_CUSTOMIZATION.scale)
-    setContentLayout(DEFAULT_THEME_CUSTOMIZATION.contentLayout)
-  }, [setPreset, setFont, setRadius, setScale, setContentLayout])
+    clearUserThemeModified()
+    writeThemePreference(THEME_STORAGE_KEYS.preset, null)
+    writeThemePreference(THEME_STORAGE_KEYS.font, null)
+    writeThemePreference(THEME_STORAGE_KEYS.radius, null)
+    writeThemePreference(THEME_STORAGE_KEYS.scale, null)
+    writeThemePreference(THEME_STORAGE_KEYS.contentLayout, null)
+    writeThemePreference(THEME_STORAGE_KEYS.navbarRadius, null)
+    _setPreset(effectiveDefaults.preset)
+    _setFont(effectiveDefaults.font)
+    _setRadius(effectiveDefaults.radius)
+    _setScale(effectiveDefaults.scale)
+    _setContentLayout(effectiveDefaults.contentLayout)
+    _setNavbarRadius(effectiveDefaults.navbarRadius)
+  }, [effectiveDefaults])
 
   const value = useMemo<ThemeCustomizationContextType>(
     () => ({
-      defaults: DEFAULT_THEME_CUSTOMIZATION,
-      customization: { preset, font, radius, scale, contentLayout },
+      defaults: effectiveDefaults,
+      customization: { preset, font, radius, scale, contentLayout, navbarRadius },
       setPreset,
       setFont,
       setRadius,
       setScale,
       setContentLayout,
+      setNavbarRadius,
       resetCustomization,
     }),
     [
+      effectiveDefaults,
       preset,
       font,
       radius,
       scale,
       contentLayout,
+      navbarRadius,
       setPreset,
       setFont,
       setRadius,
       setScale,
       setContentLayout,
+      setNavbarRadius,
       resetCustomization,
     ]
   )
 
   return (
-    <ThemeCustomizationContext.Provider value={value}>
+    <ThemeCustomizationContext value={value}>
       {props.children}
-    </ThemeCustomizationContext.Provider>
+    </ThemeCustomizationContext>
   )
 }
 

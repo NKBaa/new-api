@@ -563,6 +563,18 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 	return user.Id, err
 }
 
+func GetUserInviterId(userId int) int {
+	if userId <= 0 {
+		return 0
+	}
+	var inviterId int
+	err := DB.Model(&User{}).Select("inviter_id").Where("id = ?", userId).Scan(&inviterId).Error
+	if err != nil {
+		return 0
+	}
+	return inviterId
+}
+
 func DeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")

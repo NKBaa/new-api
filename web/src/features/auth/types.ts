@@ -84,6 +84,20 @@ export interface ApiResponse<T = unknown> {
 }
 
 // ============================================================================
+// Customer Service
+// ============================================================================
+
+export interface CustomerServiceItem {
+  id: number
+  title: string
+  contact?: string
+  description?: string
+  qrcode?: string
+  link?: string
+  color?: string
+}
+
+// ============================================================================
 // System Status
 // ============================================================================
 
@@ -134,11 +148,17 @@ export interface SystemStatus {
     password_login_enabled?: boolean
     password_login_encryption_enabled?: boolean
     password_register_enabled?: boolean
+    affiliate_description?: string
     custom_oauth_providers?: CustomOAuthProviderInfo[]
+    customer_service_enabled?: boolean
+    customer_service?: CustomerServiceItem[]
     [key: string]: unknown
   }
+  customer_service_enabled?: boolean
+  customer_service?: CustomerServiceItem[]
   // Allow direct access to common properties
   version?: string
+  affiliate_description?: string
   system_name?: string
   logo?: string
   github_oauth?: boolean

@@ -1,7 +1,9 @@
 package model
 
 import (
+	"fmt"
 	"maps"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -48,6 +50,7 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
+	common.OptionMap["MaxRegisterNumPerIP"] = strconv.Itoa(common.MaxRegisterNumPerIP)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
@@ -143,6 +146,11 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["AffiliateCommissionRate"] = strconv.FormatFloat(common.AffiliateCommissionRate, 'f', -1, 64)
+	common.OptionMap["AffiliateDescription"] = ""
+	common.OptionMap["DefaultThemeSettings"] = common.DefaultThemeSettings
+	common.OptionMap["ErrorSanitizationEnabled"] = strconv.FormatBool(common.ErrorSanitizationEnabled)
+	common.OptionMap["ErrorMappingRules"] = common.ErrorMappingRules
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -239,6 +247,38 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "ErrorMappingRules" {
+		if strings.TrimSpace(value) != "" {
+			var rules []common.ErrorMappingRule
+			if err := common.Unmarshal([]byte(value), &rules); err != nil {
+				return fmt.Errorf("报错映射规则必须是合法的 JSON 数组: %v", err)
+			}
+		}
+	}
+	if key == "AffiliateCommissionRate" {
+		val, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil || math.IsNaN(val) || math.IsInf(val, 0) || val < 0 || val > 100 {
+			return fmt.Errorf("返佣比例必须在 0%% 到 100%% 之间")
+		}
+	}
+	if key == "Logo" {
+		if len(value) > 500000 {
+			return fmt.Errorf("Logo 数据过大（不能超过 500KB）")
+		}
+		if value != "" {
+			lower := strings.ToLower(value)
+			if strings.Contains(lower, "<script") || strings.Contains(lower, "javascript:") {
+				return fmt.Errorf("Logo 包含不允许的内容")
+			}
+			if !strings.HasPrefix(value, "data:image/") &&
+				!strings.HasPrefix(value, "http://") &&
+				!strings.HasPrefix(value, "https://") &&
+				!strings.HasPrefix(value, "/") &&
+				!strings.HasPrefix(value, "./") {
+				return fmt.Errorf("Logo 格式不合法")
+			}
+		}
 	}
 	return nil
 }
@@ -459,6 +499,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "ErrorSanitizationEnabled":
+			common.ErrorSanitizationEnabled = boolValue
 		}
 	}
 	if key == setting.TaskPluginDisabledFactoryKeysKey {
@@ -608,6 +650,18 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "AffiliateCommissionRate":
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err == nil && !math.IsNaN(parsed) && !math.IsInf(parsed, 0) && parsed >= 0 && parsed <= 100 {
+			common.AffiliateCommissionRate = parsed
+		}
+	case "AffiliateDescription":
+	case "DefaultThemeSettings":
+		common.DefaultThemeSettings = value
+	case "ErrorMappingRules":
+		common.ErrorMappingRules = value
+	case "MaxRegisterNumPerIP":
+		common.MaxRegisterNumPerIP, _ = strconv.Atoi(value)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

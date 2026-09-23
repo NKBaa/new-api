@@ -21,6 +21,7 @@ import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'
 import { ApiInfoSection } from './api-info-section'
 import { ChatSettingsSection } from './chat-settings-section'
+import { CustomerServiceSection } from './customer-service-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
@@ -113,6 +114,16 @@ const CONTENT_SECTIONS = [
           MjModeClearEnabled: settings.MjModeClearEnabled,
           MjActionCheckSuccessEnabled: settings.MjActionCheckSuccessEnabled,
         }}
+      />
+    ),
+  },
+  {
+    id: 'customer-service',
+    titleKey: 'Customer Service Presets',
+    build: (settings: ContentSettings) => (
+      <CustomerServiceSection
+        enabled={settings['console_setting.customer_service_enabled']}
+        data={settings['console_setting.customer_service']}
       />
     ),
   },

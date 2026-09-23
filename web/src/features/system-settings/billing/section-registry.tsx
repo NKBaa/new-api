@@ -63,6 +63,8 @@ const BILLING_SECTIONS = [
           QuotaForNewUser: settings.QuotaForNewUser,
           QuotaForInviter: settings.QuotaForInviter,
           QuotaForInvitee: settings.QuotaForInvitee,
+          AffiliateCommissionRate: settings.AffiliateCommissionRate ?? 0,
+          AffiliateDescription: settings.AffiliateDescription ?? '',
           TopUpLink: settings.TopUpLink,
           quota_setting: {
             trust_quota_usd: settings['quota_setting.trust_quota_usd'],
@@ -197,6 +199,9 @@ const BILLING_SECTIONS = [
           enabled: settings['checkin_setting.enabled'],
           minQuota: settings['checkin_setting.min_quota'],
           maxQuota: settings['checkin_setting.max_quota'],
+          requireTopUp: settings['checkin_setting.require_topup'],
+          maxCheckinPerIP: settings['checkin_setting.max_checkin_per_ip'],
+          blockAutomatedUA: settings['checkin_setting.block_automated_ua'],
         }}
       />
     ),

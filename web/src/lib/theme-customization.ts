@@ -83,6 +83,13 @@ export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
 export type ThemeRadius = 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
 export type ThemeScale = 'default' | 'sm' | 'lg' | 'xl'
 export type ContentLayout = 'full' | 'centered'
+export type ThemeNavbarRadius =
+  | 'default'
+  | 'full'
+  | 'lg'
+  | 'md'
+  | 'none'
+  | 'auto'
 
 /**
  * Font axis for the theme.
@@ -113,6 +120,7 @@ export type ThemeCustomization = {
   radius: ThemeRadius
   scale: ThemeScale
   contentLayout: ContentLayout
+  navbarRadius: ThemeNavbarRadius
 }
 
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
@@ -121,6 +129,7 @@ export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
   radius: 'default',
   scale: 'default',
   contentLayout: 'full',
+  navbarRadius: 'default',
 }
 
 export const THEME_PRESET_VALUES = new Set(
@@ -154,6 +163,41 @@ export const CONTENT_LAYOUT_VALUES: ReadonlySet<ContentLayout> = new Set([
   'centered',
 ])
 
+export const THEME_NAVBAR_RADIUS_VALUES: ReadonlySet<ThemeNavbarRadius> = new Set([
+  'default',
+  'full',
+  'lg',
+  'md',
+  'none',
+  'auto',
+])
+
+export type ThemeMode = 'dark' | 'light' | 'system'
+
+export type DefaultThemeSettings = {
+  theme?: ThemeMode
+  preset?: ThemePreset
+  font?: ThemeFont
+  radius?: ThemeRadius
+  scale?: ThemeScale
+  contentLayout?: ContentLayout
+  navbarRadius?: ThemeNavbarRadius
+}
+
+export function parseDefaultThemeSettings(
+  raw?: string | null
+): DefaultThemeSettings | null {
+  if (!raw || typeof raw !== 'string') return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as DefaultThemeSettings
+    }
+  } catch {
+    // ignore
+  }
+  return null
+}
 /**
  * Preset → default font mapping. Used by the provider to resolve the user's
  * `font: 'default'` preference against the active preset.
@@ -187,3 +231,4 @@ export function resolveThemeFont(
   }
   return font
 }
+

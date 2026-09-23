@@ -23,7 +23,36 @@ export const THEME_STORAGE_KEYS = {
   radius: 'newapi:theme:v1:radius',
   scale: 'newapi:theme:v1:scale',
   contentLayout: 'newapi:theme:v1:content-layout',
+  navbarRadius: 'newapi:theme:v1:navbar-radius',
+  userModified: 'newapi:theme:v1:user-modified',
 } as const
+
+export function isUserThemeModified(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEYS.userModified) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function clearUserThemeModified(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(THEME_STORAGE_KEYS.userModified)
+  } catch {
+    // ignore
+  }
+}
+
+export function markUserThemeModified(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEYS.userModified, 'true')
+  } catch {
+    // ignore
+  }
+}
 
 export function readThemePreference<T extends string>(
   key: string,

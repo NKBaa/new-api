@@ -69,6 +69,7 @@ var WeChatAuthEnabled = false
 var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
 var RegisterEnabled = true
+var MaxRegisterNumPerIP = 0 // 单 IP 24小时最多允许注册账号数，0 为不限制
 
 var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
 var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制
@@ -125,10 +126,14 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+var AffiliateCommissionRate = 0.0
+var DefaultThemeSettings = ""
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
 var QuotaRemindThreshold = 1000
+var ErrorSanitizationEnabled = true
+var ErrorMappingRules = ""
 
 // PreConsumedQuota is retained for old option clients; token reservations now
 // use quota_setting.pre_consume_multiplier and the estimated input cost.

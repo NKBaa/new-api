@@ -59,8 +59,12 @@ import {
   type ThemePreset,
   type ThemeRadius,
   type ThemeScale,
+  type ThemeNavbarRadius,
+  type DefaultThemeSettings,
 } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
+import { useIsAdmin } from '@/hooks/use-admin'
+import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 
 import { useSidebar } from './ui/sidebar'
 
@@ -70,9 +74,27 @@ export function ConfigDrawer() {
   const { t } = useTranslation()
   const { setOpen } = useSidebar()
   const { resetDir } = useDirection()
-  const { resetTheme } = useTheme()
+  const { theme, resetTheme } = useTheme()
   const { resetLayout } = useLayout()
-  const { resetCustomization } = useThemeCustomization()
+  const { customization, resetCustomization } = useThemeCustomization()
+  const isAdmin = useIsAdmin()
+  const updateOption = useUpdateOption()
+
+  const handleSaveAsDefault = () => {
+    const settings: DefaultThemeSettings = {
+      theme,
+      preset: customization.preset,
+      font: customization.font,
+      radius: customization.radius,
+      scale: customization.scale,
+      contentLayout: customization.contentLayout,
+      navbarRadius: customization.navbarRadius,
+    }
+    updateOption.mutate({
+      key: 'DefaultThemeSettings',
+      value: JSON.stringify(settings),
+    })
+  }
 
   const handleReset = () => {
     setOpen(true)
@@ -109,13 +131,24 @@ export function ConfigDrawer() {
           <PresetConfig />
           <FontConfig />
           <RadiusConfig />
+          <NavbarRadiusConfig />
           <ScaleConfig />
           <SidebarConfig />
           <LayoutConfig />
           <ContentLayoutConfig />
           <DirConfig />
         </div>
-        <SheetFooter className={sideDrawerFooterClassName('grid-cols-1')}>
+        <SheetFooter className={sideDrawerFooterClassName(isAdmin ? 'grid-cols-2' : 'grid-cols-1')}>
+          {isAdmin && (
+            <Button
+              variant='default'
+              onClick={handleSaveAsDefault}
+              disabled={updateOption.isPending}
+              aria-label={t('Set as Site Default')}
+            >
+              {updateOption.isPending ? t('Saving...') : t('Set as Site Default')}
+            </Button>
+          )}
           <Button
             variant='destructive'
             onClick={handleReset}
@@ -447,6 +480,78 @@ function RadiusConfig() {
               />
             </div>
             <div className='mt-1.5 text-center text-xs'>{option.label}</div>
+          </Item>
+        ))}
+      </Radio>
+    </div>
+  )
+}
+
+const NAVBAR_RADIUS_OPTIONS: {
+  value: ThemeNavbarRadius
+  labelKey: string
+  previewRadius: string
+}[] = [
+  { value: 'default', labelKey: 'navbar_radius.default', previewRadius: '4px' },
+  { value: 'full', labelKey: 'navbar_radius.full', previewRadius: '9999px' },
+  { value: 'lg', labelKey: 'navbar_radius.lg', previewRadius: '3px' },
+  { value: 'md', labelKey: 'navbar_radius.md', previewRadius: '1.5px' },
+  { value: 'none', labelKey: 'navbar_radius.none', previewRadius: '0px' },
+  { value: 'auto', labelKey: 'navbar_radius.auto', previewRadius: 'var(--radius)' },
+]
+
+function NavbarRadiusConfig() {
+  const { t } = useTranslation()
+  const { defaults, customization, setNavbarRadius } = useThemeCustomization()
+  return (
+    <div>
+      <SectionTitle
+        title={t('Homepage Floating Header Radius')}
+        showReset={customization.navbarRadius !== defaults.navbarRadius}
+        onReset={() => setNavbarRadius(defaults.navbarRadius)}
+      />
+      <Radio
+        value={customization.navbarRadius}
+        onValueChange={(v) => setNavbarRadius(v as ThemeNavbarRadius)}
+        className='grid w-full grid-cols-6 gap-2'
+        aria-label={t('Select floating header radius')}
+      >
+        {NAVBAR_RADIUS_OPTIONS.map((option) => (
+          <Item
+            key={option.value}
+            value={option.value}
+            className='group flex flex-col items-stretch outline-none'
+            aria-label={t(option.labelKey)}
+          >
+            <div
+              className={cn(
+                'ring-border relative h-12 rounded-md ring-[1px] transition',
+                'group-data-checked:ring-primary group-data-checked:shadow-md',
+                'group-focus-visible:ring-2',
+                'group-hover:ring-primary/60'
+              )}
+            >
+              <CircleCheck
+                className={cn(
+                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'group-data-unchecked:hidden'
+                )}
+                aria-hidden='true'
+              />
+              <div
+                aria-hidden='true'
+                className='border-foreground/70 absolute inset-x-1.5 top-1/2 -translate-y-1/2 h-3.5 border-[1.5px] bg-foreground/10 flex items-center px-1'
+                style={{ borderRadius: option.previewRadius }}
+              >
+                <div className='size-1 rounded-full bg-foreground/60' />
+              </div>
+            </div>
+            <div
+              className='mt-1.5 text-center text-[10px] leading-tight truncate'
+              title={t(option.labelKey)}
+            >
+              {t(option.labelKey)}
+            </div>
           </Item>
         ))}
       </Radio>

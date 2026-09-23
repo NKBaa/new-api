@@ -28,6 +28,9 @@ import type { UpdateOptionRequest, UpdatePasskeyDomainsRequest } from '../types'
 
 // Configuration keys that require status refresh
 const STATUS_RELATED_KEYS = new Set([
+  'SystemName',
+  'Logo',
+  'Footer',
   'HeaderNavModules',
   'SidebarModulesAdmin',
   'Notice',
@@ -45,6 +48,10 @@ const STATUS_RELATED_KEYS = new Set([
   'passkey.rp_id',
   'passkey.legacy_rp_ids',
   'passkey.origins',
+  'DefaultThemeSettings',
+  'AffiliateDescription',
+  'console_setting.customer_service',
+  'console_setting.customer_service_enabled',
 ])
 
 export function useUpdateOption() {

@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
-import { Home } from '@/features/home'
+import { LandingV2 } from '@/features/landing-v2'
 
 export const Route = createFileRoute('/')({
-  component: Home,
+  component: LandingV2,
 })
+

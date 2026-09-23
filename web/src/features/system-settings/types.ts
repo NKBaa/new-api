@@ -161,6 +161,7 @@ export type AuthSettings = {
   PasswordRegisterEnabled: boolean
   EmailVerificationEnabled: boolean
   RegisterEnabled: boolean
+  MaxRegisterNumPerIP: number
   EmailDomainRestrictionEnabled: boolean
   EmailAliasRestrictionEnabled: boolean
   EmailDomainWhitelist: string
@@ -213,6 +214,8 @@ export type ContentSettings = {
   'console_setting.api_info_enabled': boolean
   'console_setting.announcements_enabled': boolean
   'console_setting.faq_enabled': boolean
+  'console_setting.customer_service': string
+  'console_setting.customer_service_enabled': boolean
   'console_setting.uptime_kuma_enabled': boolean
   DataExportEnabled: boolean
   DataExportDefaultTime: string
@@ -274,6 +277,8 @@ export type BillingSettings = {
   QuotaForNewUser: number
   QuotaForInviter: number
   QuotaForInvitee: number
+  AffiliateCommissionRate?: number
+  AffiliateDescription?: string
   TopUpLink: string
   'quota_setting.enable_free_model_pre_consume': boolean
   'quota_setting.trust_quota_usd': number
@@ -355,6 +360,9 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'checkin_setting.require_topup': boolean
+  'checkin_setting.max_checkin_per_ip': number
+  'checkin_setting.block_automated_ua': boolean
 }
 
 export type OperationsSettings = {
@@ -387,6 +395,16 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
+}
+
+export interface ErrorMappingRule {
+  id: number
+  name: string
+  match_code: number
+  keywords: string
+  replace_msg: string
+  override_code: number
+  enabled: boolean
 }
 
 export type SecuritySettings = {

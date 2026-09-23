@@ -175,6 +175,99 @@ func (e *NewAPIError) MaskSensitiveErrorWithStatusCode() string {
 
 func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
+	if openAIError, ok := e.RelayError.(OpenAIError); ok {
+		openAIError.Message = message
+		e.RelayError = openAIError
+	} else if claudeError, ok := e.RelayError.(ClaudeError); ok {
+		claudeError.Message = message
+		e.RelayError = claudeError
+	}
+}
+
+func (e *NewAPIError) ClearMetadata() {
+	e.Metadata = nil
+	if openAIError, ok := e.RelayError.(OpenAIError); ok {
+		openAIError.Metadata = nil
+		e.RelayError = openAIError
+	}
+}
+
+// StandardOpenAIFields returns standard client-facing OpenAI error type and code based on HTTP status code.
+func StandardOpenAIFields(statusCode int) (string, string) {
+	switch statusCode {
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		return "invalid_request_error", "invalid_request_error"
+	case http.StatusUnauthorized:
+		return "authentication_error", "invalid_api_key"
+	case http.StatusForbidden:
+		return "permission_error", "permission_denied"
+	case http.StatusNotFound:
+		return "not_found_error", "model_not_found"
+	case http.StatusRequestEntityTooLarge:
+		return "invalid_request_error", "context_length_exceeded"
+	case http.StatusTooManyRequests:
+		return "rate_limit_error", "rate_limit_exceeded"
+	case http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout:
+		return "api_error", "service_unavailable"
+	default:
+		return "api_error", "internal_server_error"
+	}
+}
+
+// StandardClaudeType returns standard client-facing Anthropic Claude error type based on HTTP status code.
+func StandardClaudeType(statusCode int) string {
+	switch statusCode {
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		return "invalid_request_error"
+	case http.StatusUnauthorized:
+		return "authentication_error"
+	case http.StatusForbidden:
+		return "permission_error"
+	case http.StatusNotFound:
+		return "not_found_error"
+	case http.StatusRequestEntityTooLarge:
+		return "request_too_large"
+	case http.StatusTooManyRequests:
+		return "rate_limit_error"
+	case http.StatusServiceUnavailable, 529:
+		return "overloaded_error"
+	default:
+		return "api_error"
+	}
+}
+
+// SanitizeFields cleans up Type, Code, Param and Metadata to prevent leaking upstream technical details to clients.
+func (e *NewAPIError) SanitizeFields(statusCode int) {
+	if e == nil {
+		return
+	}
+	e.ClearMetadata()
+	stdOpenAIType, stdOpenAICode := StandardOpenAIFields(statusCode)
+	stdClaudeType := StandardClaudeType(statusCode)
+
+	if openAIError, ok := e.RelayError.(OpenAIError); ok {
+		openAIError.Type = stdOpenAIType
+		openAIError.Code = stdOpenAICode
+		openAIError.Param = ""
+		openAIError.Metadata = nil
+		e.RelayError = openAIError
+		e.errorType = ErrorTypeOpenAIError
+		e.errorCode = ErrorCode(stdOpenAICode)
+	} else if claudeError, ok := e.RelayError.(ClaudeError); ok {
+		claudeError.Type = stdClaudeType
+		e.RelayError = claudeError
+		e.errorType = ErrorTypeClaudeError
+		e.errorCode = ErrorCode(stdClaudeType)
+	} else {
+		e.RelayError = OpenAIError{
+			Message: e.Error(),
+			Type:    stdOpenAIType,
+			Param:   "",
+			Code:    stdOpenAICode,
+		}
+		e.errorType = ErrorTypeOpenAIError
+		e.errorCode = ErrorCode(stdOpenAICode)
+	}
 }
 
 func (e *NewAPIError) ToOpenAIError() OpenAIError {
@@ -210,14 +303,34 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	return result
 }
 
+func isKnownClaudeErrorType(t string) bool {
+	switch t {
+	case "invalid_request_error", "authentication_error", "permission_error",
+		"not_found_error", "request_too_large", "rate_limit_error",
+		"api_error", "overloaded_error":
+		return true
+	default:
+		return false
+	}
+}
+
 func (e *NewAPIError) ToClaudeError() ClaudeError {
 	var result ClaudeError
 	switch e.errorType {
 	case ErrorTypeOpenAIError:
 		if openAIError, ok := e.RelayError.(OpenAIError); ok {
+			codeStr := fmt.Sprintf("%v", openAIError.Code)
+			claudeType := codeStr
+			if isKnownClaudeErrorType(openAIError.Type) {
+				claudeType = openAIError.Type
+			} else if isKnownClaudeErrorType(codeStr) {
+				claudeType = codeStr
+			} else if e.StatusCode > 0 {
+				claudeType = StandardClaudeType(e.StatusCode)
+			}
 			result = ClaudeError{
 				Message: e.Error(),
-				Type:    fmt.Sprintf("%v", openAIError.Code),
+				Type:    claudeType,
 			}
 		}
 	case ErrorTypeClaudeError:

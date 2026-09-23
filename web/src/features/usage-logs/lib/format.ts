@@ -235,24 +235,36 @@ export function getResponseTimeColor(
 /**
  * Format model name with mapping indicator
  */
-export function formatModelName(log: UsageLog): {
+export function formatModelName(
+  log: UsageLog,
+  isAdmin = false
+): {
   name: string
   isMapped: boolean
   actualModel?: string
   responseModel?: LogOtherData['response_model']
 } {
+  if (!isAdmin) {
+    return {
+      name: log.model_name,
+      isMapped: false,
+      actualModel: undefined,
+      responseModel: undefined,
+    }
+  }
+
   const other = parseLogOther(log.other)
-  const isMapped = !!(
-    other?.is_model_mapped &&
-    other?.upstream_model_name &&
-    other.upstream_model_name !== ''
-  )
+  const adminInfo = other?.admin_info
+  const mappedFlag = adminInfo?.is_model_mapped ?? other?.is_model_mapped
+  const upstreamName =
+    adminInfo?.upstream_model_name ?? other?.upstream_model_name
+  const isMapped = !!(mappedFlag && upstreamName && upstreamName !== '')
 
   return {
     name: log.model_name,
     isMapped,
-    actualModel: isMapped ? other.upstream_model_name : undefined,
-    responseModel: other?.response_model,
+    actualModel: isMapped ? upstreamName : undefined,
+    responseModel: adminInfo?.response_model ?? other?.response_model,
   }
 }
 

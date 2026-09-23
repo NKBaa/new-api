@@ -79,6 +79,8 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 		return validateFAQ(settingsStr)
 	case "UptimeKumaGroups":
 		return validateUptimeKumaGroups(settingsStr)
+	case "CustomerService":
+		return validateCustomerService(settingsStr)
 	default:
 		return fmt.Errorf("未知的设置类型：%s", settingType)
 	}
@@ -307,4 +309,72 @@ func validateUptimeKumaGroups(groupsStr string) error {
 
 func GetUptimeKumaGroups() []map[string]interface{} {
 	return getJSONList(GetConsoleSetting().UptimeKumaGroups)
+}
+
+func validateCustomerService(customerServiceStr string) error {
+	list, err := parseJSONArray(customerServiceStr, "客服信息预设")
+	if err != nil {
+		return err
+	}
+	if len(list) > 50 {
+		return fmt.Errorf("客服预设数量不能超过50个")
+	}
+	for i, item := range list {
+		title, ok := item["title"].(string)
+		if !ok || strings.TrimSpace(title) == "" {
+			return fmt.Errorf("第%d个客服预设缺少名称字段", i+1)
+		}
+		if exceedsMaxCharacters(title, 100) {
+			return fmt.Errorf("第%d个客服预设的名称长度不能超过100字符", i+1)
+		}
+		if err := checkDangerousContent(title, i+1, "客服预设名称"); err != nil {
+			return err
+		}
+		if desc, exists := item["description"].(string); exists && desc != "" {
+			if exceedsMaxCharacters(desc, 500) {
+				return fmt.Errorf("第%d个客服预设的说明长度不能超过500字符", i+1)
+			}
+			if err := checkDangerousContent(desc, i+1, "客服预设说明"); err != nil {
+				return err
+			}
+		}
+		if contact, exists := item["contact"].(string); exists && contact != "" {
+			if exceedsMaxCharacters(contact, 200) {
+				return fmt.Errorf("第%d个客服预设的联系方式长度不能超过200字符", i+1)
+			}
+			if err := checkDangerousContent(contact, i+1, "客服预设联系方式"); err != nil {
+				return err
+			}
+		}
+		if qrcode, exists := item["qrcode"].(string); exists && qrcode != "" {
+			if strings.HasPrefix(qrcode, "data:image/") {
+				if exceedsMaxCharacters(qrcode, 500000) {
+					return fmt.Errorf("第%d个客服预设的二维码图片数据过大（不能超过500KB）", i+1)
+				}
+				if err := checkDangerousContent(qrcode, i+1, "客服预设二维码"); err != nil {
+					return err
+				}
+			} else {
+				if exceedsMaxCharacters(qrcode, 1000) {
+					return fmt.Errorf("第%d个客服预设的二维码地址长度不能超过1000字符", i+1)
+				}
+				if err := validateURL(qrcode, i+1, "客服预设二维码"); err != nil {
+					return err
+				}
+			}
+		}
+		if link, exists := item["link"].(string); exists && link != "" {
+			if exceedsMaxCharacters(link, 1000) {
+				return fmt.Errorf("第%d个客服预设的链接长度不能超过1000字符", i+1)
+			}
+			if err := checkDangerousContent(link, i+1, "客服预设链接"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func GetCustomerService() []map[string]interface{} {
+	return getJSONList(GetConsoleSetting().CustomerService)
 }

@@ -28,6 +28,8 @@ const defaultBillingSettings: BillingSettings = {
   QuotaForNewUser: 0,
   QuotaForInviter: 0,
   QuotaForInvitee: 0,
+  AffiliateCommissionRate: 0,
+  AffiliateDescription: '',
   TopUpLink: '',
   'quota_setting.enable_free_model_pre_consume': true,
   'quota_setting.trust_quota_usd': 10,
@@ -107,6 +109,9 @@ const defaultBillingSettings: BillingSettings = {
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,
+  'checkin_setting.require_topup': false,
+  'checkin_setting.max_checkin_per_ip': 0,
+  'checkin_setting.block_automated_ua': false,
 }
 
 export function BillingSettings() {

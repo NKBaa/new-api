@@ -72,6 +72,7 @@ if (!rootElement) {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
     const apply = (name: string) => {
+      if (!name || name === 'New API') return
       document.title = name
       const metaTitle = document.querySelector(
         'meta[name="title"]'

@@ -6,12 +6,49 @@
     <meta name="google" content="notranslate" />
 
     <!-- Primary Meta Tags -->
-    <title>New API</title>
-    <meta name="title" content="New API" />
+    <title></title>
+    <meta name="title" content="" />
     <meta
       name="description"
       content="Unified AI API gateway and admin dashboard."
     />
+
+    <!-- Synchronously hydrate branding before initial paint to eliminate title/icon flicker -->
+    <script>
+      (function () {
+        try {
+          var name = '';
+          var logo = '';
+          var raw = localStorage.getItem('status');
+          if (raw) {
+            var data = JSON.parse(raw);
+            if (data) {
+              name = data.system_name || '';
+              logo = data.logo || '';
+            }
+          }
+          if (!name) {
+            var cfg = localStorage.getItem('system-config-storage');
+            if (cfg) {
+              var parsed = JSON.parse(cfg);
+              if (parsed && parsed.state && parsed.state.config) {
+                name = parsed.state.config.systemName || '';
+                logo = logo || parsed.state.config.logo || '';
+              }
+            }
+          }
+          if (name && name !== 'New API') {
+            document.title = name;
+            var metaTitle = document.querySelector('meta[name="title"]');
+            if (metaTitle) metaTitle.setAttribute('content', name);
+          }
+          if (logo && logo !== '/logo.png') {
+            var iconLink = document.querySelector('link[rel~="icon"]');
+            if (iconLink) iconLink.setAttribute('href', logo);
+          }
+        } catch (e) {}
+      })();
+    </script>
 
     <meta name="theme-color" content="#fff" />
     <!--umami-->

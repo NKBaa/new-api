@@ -20,6 +20,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
+import type { DefaultThemeSettings } from '@/lib/theme-customization'
 
 export type CurrencyDisplayType = 'USD' | 'CNY' | 'TOKENS' | 'CUSTOM'
 
@@ -45,6 +46,7 @@ export interface SystemConfig {
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
   currency: CurrencyConfig
+  defaultThemeSettings?: DefaultThemeSettings | null
 }
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
@@ -86,7 +88,7 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             ...newConfig,
             currency: {
               ...state.config.currency,
-              ...(newConfig.currency ?? {}),
+              ...newConfig.currency,
             },
           },
         })),

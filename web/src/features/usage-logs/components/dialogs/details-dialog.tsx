@@ -1128,15 +1128,27 @@ export function DetailsDialog(props: DetailsDialogProps) {
           />
         )}
 
-        {other?.response_model && (
-          <DetailSection label={t('Response Model')}>
-            <ResponseModelDetails observation={other.response_model} />
-          </DetailSection>
-        )}
+        {props.isAdmin &&
+          (other?.response_model || other?.admin_info?.response_model) && (
+            <DetailSection label={t('Response Model')}>
+              <ResponseModelDetails
+                observation={
+                  other?.admin_info?.response_model ||
+                  other?.response_model || {
+                    requested_model: '',
+                    upstream_model: '',
+                    returned_model: '',
+                  }
+                }
+              />
+            </DetailSection>
+          )}
         {/* Model mapping for logs without response observations */}
-        {!other?.response_model &&
-          other?.is_model_mapped &&
-          other?.upstream_model_name && (
+        {props.isAdmin &&
+          !(other?.response_model || other?.admin_info?.response_model) &&
+          (other?.is_model_mapped || other?.admin_info?.is_model_mapped) &&
+          (other?.upstream_model_name ||
+            other?.admin_info?.upstream_model_name) && (
             <DetailSection label={t('Model Mapping')}>
               <DetailRow
                 label={t('Request Model')}
@@ -1145,7 +1157,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
               />
               <DetailRow
                 label={t('Actual Model')}
-                value={other.upstream_model_name}
+                value={
+                  other?.admin_info?.upstream_model_name ||
+                  other?.upstream_model_name ||
+                  ''
+                }
                 mono
               />
             </DetailSection>

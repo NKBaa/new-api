@@ -20,6 +20,7 @@ import { queryOptions, type QueryClient } from '@tanstack/react-query'
 
 import { getStatus } from '@/lib/api'
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
+import { parseDefaultThemeSettings } from '@/lib/theme-customization'
 import {
   useSystemConfigStore,
   type CurrencyConfig,
@@ -100,6 +101,9 @@ export function mapStatusDataToConfig(
       | boolean
       | undefined,
     currency,
+    defaultThemeSettings: parseDefaultThemeSettings(
+      data.default_theme_settings as string | undefined
+    ),
   }
 }
 
@@ -108,7 +112,20 @@ export function readCachedStatus(): StatusData | null {
   try {
     if (typeof window === 'undefined') return null
     const raw = window.localStorage.getItem(STATUS_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as StatusData) : null
+    if (raw) return JSON.parse(raw) as StatusData
+    const cfgRaw = window.localStorage.getItem('system-config-storage')
+    if (cfgRaw) {
+      const parsed = JSON.parse(cfgRaw) as {
+        state?: { config?: { systemName?: string; logo?: string } }
+      }
+      if (parsed?.state?.config) {
+        return {
+          system_name: parsed.state.config.systemName,
+          logo: parsed.state.config.logo,
+        }
+      }
+    }
+    return null
   } catch {
     return null
   }
