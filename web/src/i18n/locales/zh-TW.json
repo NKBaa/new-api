@@ -6938,8 +6938,7 @@
     "Select OpenAI Compatible as API Provider and enter key": "API Provider 選擇 OpenAI Compatible 填入金鑰",
     "Settings > Custom Interface > Enter Base URL & Key": "設定 > 自訂介面 > 填入 Base URL 與金鑰",
     "Model Provider > Add OpenAI-API-compatible configuration": "模型供應商 > 新增 OpenAI-API-compatible 設定",
-    "No performance metrics available in the last 24 hours": "過去 24 小時無效能監控數據"
-  },
+    "No performance metrics available in the last 24 hours": "過去 24 小時無效能監控數據",
     "ICO format is not allowed": "不支援 ICO 格式",
     "Icon file size must not exceed 250KB": "圖示檔案大小不能超過 250KB",
     "SVG format is not allowed for security reasons. Please use PNG, JPEG, WebP or ICO.": "基於安全考量不支援 SVG 格式，請改用 PNG、JPEG、WebP 或 ICO。",
@@ -6960,4 +6959,5 @@
     "One signature per line, or separate them with commas. Leave blank to use only the built-in signatures.": "每行一個或以逗號分隔自訂攔截特徵，留空則僅使用系統內建特徵。",
     "Detect upstream responses that return HTTP 200 while the body is actually a risk-control block, then retry another channel without charging quota": "偵測上游回傳 HTTP 200 但內容實為風控攔截的虛假回應，命中後自動更換通路重試，且不扣除額度",
     "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "僅對本通路生效，在內建特徵之外追加。僅當回應內容不超過 400 字元且命中特徵時，才判定為偽 200 異常。"
+  }
 }

@@ -6938,8 +6938,7 @@
     "Select OpenAI Compatible as API Provider and enter key": "Выберите OpenAI Compatible в качестве API Provider и введите ключ",
     "Settings > Custom Interface > Enter Base URL & Key": "Настройки > Пользовательский интерфейс > Введите Base URL и ключ",
     "Model Provider > Add OpenAI-API-compatible configuration": "Провайдер моделей > Добавить конфигурацию, совместимую с OpenAI-API",
-    "No performance metrics available in the last 24 hours": "Нет данных о производительности за последние 24 часа"
-  },
+    "No performance metrics available in the last 24 hours": "Нет данных о производительности за последние 24 часа",
     "ICO format is not allowed": "Формат ICO не поддерживается",
     "Icon file size must not exceed 250KB": "Размер файла значка не должен превышать 250 КБ",
     "SVG format is not allowed for security reasons. Please use PNG, JPEG, WebP or ICO.": "Формат SVG не допускается по соображениям безопасности. Используйте PNG, JPEG, WebP или ICO.",
@@ -6960,4 +6959,5 @@
     "One signature per line, or separate them with commas. Leave blank to use only the built-in signatures.": "По одной сигнатуре в строке или через запятую. Оставьте пустым, чтобы использовать только встроенные сигнатуры.",
     "Detect upstream responses that return HTTP 200 while the body is actually a risk-control block, then retry another channel without charging quota": "Обнаруживает ответы вышестоящего сервиса с HTTP 200, тело которых на самом деле является блокировкой системы контроля рисков, и повторяет запрос через другой канал без списания квоты",
     "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "Добавляются к встроенным сигнатурам только для этого канала. Ответ считается ошибкой псевдо-200 только если он короче 400 символов и совпадает с сигнатурой."
+  }
 }

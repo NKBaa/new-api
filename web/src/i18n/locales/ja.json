@@ -6938,8 +6938,7 @@
     "Select OpenAI Compatible as API Provider and enter key": "API ProviderでOpenAI Compatibleを選択しキーを入力",
     "Settings > Custom Interface > Enter Base URL & Key": "設定 > カスタムインターフェース > Base URLとキーを入力",
     "Model Provider > Add OpenAI-API-compatible configuration": "モデルプロバイダー > OpenAI-API-compatible 設定を追加",
-    "No performance metrics available in the last 24 hours": "過去24時間のパフォーマンスメトリクスはありません"
-  },
+    "No performance metrics available in the last 24 hours": "過去24時間のパフォーマンスメトリクスはありません",
     "ICO format is not allowed": "ICO 形式には対応していません",
     "Icon file size must not exceed 250KB": "アイコンファイルのサイズは 250KB 以下にしてください",
     "SVG format is not allowed for security reasons. Please use PNG, JPEG, WebP or ICO.": "セキュリティ上の理由により SVG 形式には対応していません。PNG、JPEG、WebP、ICO をご利用ください。",
@@ -6960,4 +6959,5 @@
     "One signature per line, or separate them with commas. Leave blank to use only the built-in signatures.": "1 行に 1 つ、またはカンマ区切りで入力してください。空欄の場合は組み込みの特徴のみを使用します。",
     "Detect upstream responses that return HTTP 200 while the body is actually a risk-control block, then retry another channel without charging quota": "HTTP 200 を返しながら本文が実際にはリスク制御によるブロックである応答を検出し、別のチャネルで再試行します。额度は消費されません",
     "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "このチャネルにのみ適用され、組み込みの特徴に追加されます。本文が 400 文字以下で特徴に一致した場合のみ、疑似 200 エラーと判定されます。"
+  }
 }

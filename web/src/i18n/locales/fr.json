@@ -6938,8 +6938,7 @@
     "Select OpenAI Compatible as API Provider and enter key": "Sélectionnez OpenAI Compatible comme fournisseur d'API et saisissez la clé",
     "Settings > Custom Interface > Enter Base URL & Key": "Paramètres > Interface personnalisée > Saisir l'URL de base et la clé",
     "Model Provider > Add OpenAI-API-compatible configuration": "Fournisseur de modèles > Ajouter une configuration compatible OpenAI-API",
-    "No performance metrics available in the last 24 hours": "Aucune métrique de performance disponible au cours des dernières 24 heures"
-  },
+    "No performance metrics available in the last 24 hours": "Aucune métrique de performance disponible au cours des dernières 24 heures",
     "ICO format is not allowed": "Le format ICO n'est pas autorisé",
     "Icon file size must not exceed 250KB": "La taille du fichier d'icône ne doit pas dépasser 250 Ko",
     "SVG format is not allowed for security reasons. Please use PNG, JPEG, WebP or ICO.": "Le format SVG n'est pas autorisé pour des raisons de sécurité. Veuillez utiliser PNG, JPEG, WebP ou ICO.",
@@ -6960,4 +6959,5 @@
     "One signature per line, or separate them with commas. Leave blank to use only the built-in signatures.": "Une signature par ligne, ou séparées par des virgules. Laissez vide pour n'utiliser que les signatures intégrées.",
     "Detect upstream responses that return HTTP 200 while the body is actually a risk-control block, then retry another channel without charging quota": "Détecte les réponses amont renvoyant HTTP 200 alors que le corps est en réalité un blocage de contrôle des risques, puis relance un autre canal sans débiter de quota",
     "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "Ajoutées aux signatures intégrées pour ce canal uniquement. Une réponse n'est considérée comme une erreur pseudo-200 que si elle fait moins de 400 caractères et correspond à une signature."
+  }
 }
