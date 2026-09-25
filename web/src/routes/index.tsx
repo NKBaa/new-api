@@ -23,4 +23,3 @@ import { LandingV2 } from '@/features/landing-v2'
 export const Route = createFileRoute('/')({
   component: LandingV2,
 })
-

@@ -475,6 +475,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "console_setting.customer_service":
+		err = console_setting.ValidateConsoleSettings(option.Value.(string), "CustomerService")
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 	if model.IsPasskeyDomainOption(option.Key) {
 		change, updateErr := model.UpdatePasskeyDomainOptions(map[string]string{option.Key: option.Value.(string)}, false, "")

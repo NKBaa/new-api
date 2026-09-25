@@ -197,17 +197,17 @@ func TestSanitizeLogContentAndUserLogs(t *testing.T) {
 
 	// 1. Matched rule from status_code + keywords
 	content1 := "status_code=500, User does not exist, organization does not exist"
-	sanitized1 := SanitizeLogContent(content1)
+	sanitized1 := SanitizeLogContent(nil, content1)
 	assert.Equal(t, "上游服务认证异常或账户不可用，请联系管理员。", sanitized1)
 
 	// 2. Matched rule: high demand
 	content2 := "status_code=503, currently experiencing high demand. Please try again later."
-	sanitized2 := SanitizeLogContent(content2)
+	sanitized2 := SanitizeLogContent(nil, content2)
 	assert.Equal(t, "当前模型服务请求量激增或高负载，请稍后重试。", sanitized2)
 
 	// 3. Fallback for unmapped error with technical details
 	content3 := "status_code=502, proxy failed connecting to 192.168.1.1:8080 and https://secret.corp/v1"
-	sanitized3 := SanitizeLogContent(content3)
+	sanitized3 := SanitizeLogContent(nil, content3)
 	assert.Equal(t, "上游服务暂时不可用或网络异常，请稍后重试。", sanitized3)
 
 	// 4. Test SanitizeUserLogs batch processor
@@ -221,14 +221,14 @@ func TestSanitizeLogContentAndUserLogs(t *testing.T) {
 			Content: "normal consume log should remain unchanged",
 		},
 	}
-	SanitizeUserLogs(logs)
+	SanitizeUserLogs(nil, logs)
 	assert.Equal(t, "提示词长度超出该模型上下文上限，请精简输入后重试。", logs[0].Content)
 	assert.Equal(t, "normal consume log should remain unchanged", logs[1].Content)
 
 	// 5. Disabled
 	common.ErrorSanitizationEnabled = false
 	raw := "status_code=500, User does not exist"
-	assert.Equal(t, raw, SanitizeLogContent(raw))
+	assert.Equal(t, raw, SanitizeLogContent(nil, raw))
 
 	// Clean up
 	common.ErrorSanitizationEnabled = true
@@ -301,4 +301,3 @@ func TestSanitizeRelayErrorFieldsAndUnknown400(t *testing.T) {
 	common.ErrorMappingRules = ""
 	cachedRulesJSON = ""
 }
-

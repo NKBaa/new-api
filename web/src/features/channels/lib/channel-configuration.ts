@@ -64,6 +64,8 @@ const CONFIGURATION_BLOCKS = {
       'ollama_openai_chat',
       'system_prompt',
       'system_prompt_override',
+      'pseudo_200_enabled',
+      'pseudo_200_custom_keywords',
     ],
   },
   fieldPassthrough: {
@@ -157,6 +159,7 @@ export function getChannelConfigurationState(
       (supportsResponsesWebSocket(values.type) &&
         values.responses_websocket_enabled) ||
       (values.type === CHANNEL_TYPE_OLLAMA && values.ollama_openai_chat) ||
+      values.pseudo_200_enabled ||
       values.system_prompt?.trim() ||
       values.system_prompt_override
     ),

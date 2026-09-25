@@ -27,10 +27,28 @@ export const THEME_STORAGE_KEYS = {
   userModified: 'newapi:theme:v1:user-modified',
 } as const
 
+/** 用户可个性化的外观键，不含 userModified 标记本身。 */
+export const THEME_PREFERENCE_KEYS = [
+  'mode',
+  'preset',
+  'font',
+  'radius',
+  'scale',
+  'contentLayout',
+  'navbarRadius',
+] as const
+
 export function isUserThemeModified(): boolean {
   if (typeof window === 'undefined') return false
   try {
-    return window.localStorage.getItem(THEME_STORAGE_KEYS.userModified) === 'true'
+    if (window.localStorage.getItem(THEME_STORAGE_KEYS.userModified) === 'true') {
+      return true
+    }
+    // 兼容升级前已保存外观偏好的老用户：已存在的偏好本身就是「用户已个性化」的证据，
+    // 若不认，他们保存的主题会在升级后被静默丢弃并回退到全站默认。
+    return THEME_PREFERENCE_KEYS.some(
+      (name) => window.localStorage.getItem(THEME_STORAGE_KEYS[name]) !== null
+    )
   } catch {
     return false
   }

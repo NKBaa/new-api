@@ -371,9 +371,9 @@ export function ThemeCustomizationProvider(props: {
   )
 
   return (
-    <ThemeCustomizationContext value={value}>
+    <ThemeCustomizationContext.Provider value={value}>
       {props.children}
-    </ThemeCustomizationContext>
+    </ThemeCustomizationContext.Provider>
   )
 }
 

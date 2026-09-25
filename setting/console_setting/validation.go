@@ -1,6 +1,7 @@
 package console_setting
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -53,6 +54,53 @@ func checkDangerousContent(content string, index int, itemType string) error {
 			return fmt.Errorf("第%d个%s包含不允许的内容", index, itemType)
 		}
 	}
+	return nil
+}
+
+func validateDataURLImage(dataURL string, index int, itemType string, allowIco bool) error {
+	lower := strings.ToLower(dataURL)
+	if strings.HasPrefix(lower, "data:image/svg") || strings.Contains(lower, "image/svg+xml") {
+		return fmt.Errorf("第%d个%s不允许使用SVG格式图片", index, itemType)
+	}
+
+	validPrefixes := []string{
+		"data:image/png;base64,",
+		"data:image/jpeg;base64,",
+		"data:image/jpg;base64,",
+		"data:image/webp;base64,",
+		"data:image/gif;base64,",
+	}
+	if allowIco {
+		validPrefixes = append(validPrefixes, "data:image/x-icon;base64,", "data:image/vnd.microsoft.icon;base64,")
+	}
+
+	matchedPrefix := ""
+	for _, p := range validPrefixes {
+		if strings.HasPrefix(lower, p) {
+			matchedPrefix = p
+			break
+		}
+	}
+	if matchedPrefix == "" {
+		return fmt.Errorf("第%d个%s的图片格式不受支持或缺少base64编码", index, itemType)
+	}
+
+	rawB64 := dataURL[len(matchedPrefix):]
+	decoded, err := base64.StdEncoding.DecodeString(rawB64)
+	if err != nil {
+		return fmt.Errorf("第%d个%s的base64数据无法解析", index, itemType)
+	}
+
+	decodedLower := strings.ToLower(string(decoded))
+	for _, d := range dangerousChars {
+		if strings.Contains(decodedLower, d) {
+			return fmt.Errorf("第%d个%s的图片内容包含危险脚本", index, itemType)
+		}
+	}
+	if strings.Contains(decodedLower, "<svg") || strings.Contains(decodedLower, "<?xml") {
+		return fmt.Errorf("第%d个%s包含被禁止的SVG矢量数据", index, itemType)
+	}
+
 	return nil
 }
 
@@ -351,7 +399,7 @@ func validateCustomerService(customerServiceStr string) error {
 				if exceedsMaxCharacters(qrcode, 500000) {
 					return fmt.Errorf("第%d个客服预设的二维码图片数据过大（不能超过500KB）", i+1)
 				}
-				if err := checkDangerousContent(qrcode, i+1, "客服预设二维码"); err != nil {
+				if err := validateDataURLImage(qrcode, i+1, "客服预设二维码", false); err != nil {
 					return err
 				}
 			} else {
@@ -363,9 +411,12 @@ func validateCustomerService(customerServiceStr string) error {
 				}
 			}
 		}
-		if link, exists := item["link"].(string); exists && link != "" {
+		if link, exists := item["link"].(string); exists && strings.TrimSpace(link) != "" {
 			if exceedsMaxCharacters(link, 1000) {
 				return fmt.Errorf("第%d个客服预设的链接长度不能超过1000字符", i+1)
+			}
+			if err := validateURL(link, i+1, "客服预设链接"); err != nil {
+				return err
 			}
 			if err := checkDangerousContent(link, i+1, "客服预设链接"); err != nil {
 				return err

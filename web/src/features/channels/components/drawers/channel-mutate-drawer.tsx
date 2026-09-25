@@ -299,6 +299,8 @@ const SENSITIVE_FORM_FIELDS = [
   'proxy',
   'http_protocol',
   'http2_connection_shards',
+  'pseudo_200_enabled',
+  'pseudo_200_custom_keywords',
   'pass_through_body_enabled',
   'responses_websocket_enabled',
   'system_prompt',
@@ -1920,6 +1922,60 @@ export function ChannelMutateDrawer({
         </FormItem>
       )}
     />
+  )
+
+  const pseudo200Fields = (
+    <>
+      <FormField
+        control={form.control}
+        name='pseudo_200_enabled'
+        render={({ field }) => (
+          <FormItem className='flex items-center justify-between px-4 py-3'>
+            <div className='space-y-0.5'>
+              <FormLabel>{t('Pseudo-200 detection')}</FormLabel>
+              <FormDescription>
+                {t(
+                  'Detect upstream responses that return HTTP 200 while the body is actually a risk-control block, then retry another channel without charging quota'
+                )}
+              </FormDescription>
+            </div>
+            <FormControl>
+              <Switch
+                disabled={sensitiveLocked}
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+      {form.watch('pseudo_200_enabled') && (
+        <FormField
+          control={form.control}
+          name='pseudo_200_custom_keywords'
+          render={({ field }) => (
+            <FormItem className='px-4 py-3'>
+              <FormLabel>{t('Custom blocking signatures')}</FormLabel>
+              <FormControl>
+                <Textarea
+                  rows={5}
+                  disabled={sensitiveLocked}
+                  placeholder={t(
+                    'One signature per line, or separate them with commas. Leave blank to use only the built-in signatures.'
+                  )}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.'
+                )}
+              </FormDescription>
+            </FormItem>
+          )}
+        />
+      )}
+    </>
   )
 
   const taskPollingFields = (
@@ -4658,6 +4714,7 @@ export function ChannelMutateDrawer({
                 {formatFields}
                 {ollamaOpenAIChatFields}
                 {thinkingFields}
+                {pseudo200Fields}
                 {currentType !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
                   passthroughFields}
                 {systemPromptFields}

@@ -257,4 +257,68 @@ describe('New API channel task plugin extensions', () => {
       'task_extend_plugin_keys'
     )
   })
+
+  test('round-trips the per-channel pseudo-200 sniffer setting independently per channel', () => {
+    const channel = channelSchema.parse({
+      id: 9,
+      name: 'Reverse proxy',
+      type: 1,
+      key: '',
+      status: 1,
+      created_time: 1,
+      test_time: 0,
+      response_time: 0,
+      balance_updated_time: 0,
+      models: 'gpt-4o',
+      group: 'default',
+      base_url: 'https://proxy.example',
+      setting: JSON.stringify({
+        pseudo_200_enabled: true,
+        pseudo_200_custom_keywords: 'quota_policy_blocked',
+      }),
+    })
+
+    const defaults = transformChannelToFormDefaults(channel)
+    expect(defaults.pseudo_200_enabled).toBe(true)
+    expect(defaults.pseudo_200_custom_keywords).toBe('quota_policy_blocked')
+
+    const payload = transformFormDataToCreatePayload(
+      channelFormSchema.parse({
+        ...newAPIForm('https://proxy.example'),
+        type: 1,
+        pseudo_200_enabled: true,
+        pseudo_200_custom_keywords: 'quota_policy_blocked',
+      })
+    )
+    expect(JSON.parse(payload.channel.setting ?? '{}')).toMatchObject({
+      pseudo_200_enabled: true,
+      pseudo_200_custom_keywords: 'quota_policy_blocked',
+    })
+
+    // 另一个渠道保持关闭：每个渠道各自独立，互不影响。
+    const other = transformChannelToFormDefaults(
+      channelSchema.parse({
+        id: 10,
+        name: 'Official direct',
+        type: 1,
+        key: '',
+        status: 1,
+        created_time: 1,
+        test_time: 0,
+        response_time: 0,
+        balance_updated_time: 0,
+        models: 'gpt-4o',
+        group: 'default',
+        base_url: 'https://api.openai.com',
+      })
+    )
+    expect(other.pseudo_200_enabled).toBe(false)
+
+    const otherPayload = transformFormDataToCreatePayload(
+      channelFormSchema.parse(newAPIForm('https://api.openai.com'))
+    )
+    expect(
+      JSON.parse(otherPayload.channel.setting ?? '{}').pseudo_200_enabled
+    ).toBe(false)
+  })
 })

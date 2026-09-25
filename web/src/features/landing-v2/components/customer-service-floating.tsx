@@ -41,11 +41,17 @@ import type { CustomerServiceItem } from '@/features/auth/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useStatus } from '@/hooks/use-status'
 
+function isValidHttpUrl(url?: string): boolean {
+  if (!url) return false
+  const trimmed = url.trim().toLowerCase()
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://')
+}
+
 export function CustomerServiceFloating() {
   const { t } = useTranslation()
   const { status } = useStatus()
   const [modalOpen, setModalOpen] = useState(false)
-  const { isCopied, copyToClipboard } = useCopyToClipboard()
+  const { copyToClipboard } = useCopyToClipboard({ notify: false })
   const [copiedId, setCopiedId] = useState<number | null>(null)
 
   const rawItems = useMemo(() => {
@@ -141,14 +147,14 @@ export function CustomerServiceFloating() {
                       onClick={() => handleCopy(item.id, item.contact)}
                       title={t('Copy contact info')}
                     >
-                      {copiedId === item.id || isCopied ? (
+                      {copiedId === item.id ? (
                         <Check className='size-3.5 text-emerald-500' />
                       ) : (
                         <Copy className='size-3.5' />
                       )}
                     </Button>
                   )}
-                  {item.link && (
+                  {isValidHttpUrl(item.link) && (
                     <Button
                       variant='ghost'
                       size='icon'

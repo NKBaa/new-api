@@ -55,6 +55,12 @@ func EnableChannel(channelId int, usingKey string, channelName string) {
 }
 
 func ShouldDisableChannel(err *types.NewAPIError) bool {
+	// 提示词级安全拦截（伪 200）不是渠道故障，一律不封渠道。
+	// 显式短路，不再依赖「错误码无 channel: 前缀」「502 不在禁用区间」
+	// 「文案不含自动禁用关键词」这三个巧合。
+	if err != nil && err.GetErrorCode() == types.ErrorCodePromptBlocked {
+		return false
+	}
 	if !common.AutomaticDisableChannelEnabled {
 		return false
 	}

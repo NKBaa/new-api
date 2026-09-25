@@ -30,7 +30,7 @@ interface QuickstartProps {
 export function Quickstart({ apiBase, primaryModel }: QuickstartProps) {
   const { t } = useTranslation()
   const [activeLang, setActiveLang] = useState<'curl' | 'python' | 'javascript'>('curl')
-  const { isCopied, copyToClipboard } = useCopyToClipboard()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
   const snippets = useMemo(() => {
     const modelName = primaryModel || '<model_name>'
@@ -120,7 +120,7 @@ console.log(response.choices[0].message.content);`,
               onClick={handleCopy}
               className='inline-flex items-center gap-1.5 rounded border border-border bg-card px-2.5 py-1 text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer'
             >
-              {isCopied ? (
+              {copiedText === snippets[activeLang] ? (
                 <>
                   <Check className='size-3.5 text-emerald-500' />
                   <span className='text-emerald-500'>{t('Copied')}</span>

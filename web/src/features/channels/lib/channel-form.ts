@@ -41,6 +41,7 @@ import {
   validateAdvancedCustomConfig,
 } from './advanced-custom'
 import { readTaskExtendPluginKeys } from './channel-plugin-extensions'
+import { supportsResponsesWebSocket } from './responses-websocket'
 
 // ============================================================================
 // Form Validation Schema
@@ -268,6 +269,8 @@ export const channelFormSchema = z
       .refine(isOptionalProxyURL, ERROR_MESSAGES.INVALID_PROXY),
     http_protocol: z.enum(['auto', 'http1']).optional(),
     http2_connection_shards: z.number().int().optional(),
+    pseudo_200_enabled: z.boolean().optional(),
+    pseudo_200_custom_keywords: z.string().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     responses_websocket_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
@@ -459,6 +462,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
+  pseudo_200_enabled: false,
+  pseudo_200_custom_keywords: '',
   pass_through_body_enabled: false,
   responses_websocket_enabled: false,
   system_prompt: '',
@@ -503,6 +508,8 @@ export function transformChannelToFormDefaults(
     proxy: '',
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
+    pseudo_200_enabled: false,
+    pseudo_200_custom_keywords: '',
     pass_through_body_enabled: false,
     responses_websocket_enabled: false,
     system_prompt: '',
@@ -524,6 +531,8 @@ export function transformChannelToFormDefaults(
         proxy: parsed.proxy || '',
         http_protocol: protocol,
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
+        pseudo_200_enabled: parsed.pseudo_200_enabled === true,
+        pseudo_200_custom_keywords: parsed.pseudo_200_custom_keywords || '',
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         responses_websocket_enabled:
           parsed.responses_websocket_enabled === true,
@@ -659,10 +668,12 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.type !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
       formData.pass_through_body_enabled === true,
     responses_websocket_enabled:
-      (formData.type === 1 || formData.type === 57) &&
+      supportsResponsesWebSocket(formData.type) &&
       formData.responses_websocket_enabled === true,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+    pseudo_200_enabled: formData.pseudo_200_enabled === true,
+    pseudo_200_custom_keywords: formData.pseudo_200_custom_keywords?.trim() || '',
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

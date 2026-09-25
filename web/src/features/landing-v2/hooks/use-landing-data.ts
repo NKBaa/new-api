@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
@@ -119,6 +120,7 @@ function inferCategories(name: string, tags?: string): ModelCategory[] {
 }
 
 export function useLandingData() {
+  const { t } = useTranslation()
   const { status } = useStatus()
   const {
     models: rawModels,
@@ -195,10 +197,12 @@ export function useLandingData() {
         description:
           m.description ||
           m.vendor_description ||
-          `${m.vendor_name || inferProvider(m.model_name)} 高可用接入模型`,
+          t('{{provider}} model with high-availability access', {
+            provider: m.vendor_name || inferProvider(m.model_name),
+          }),
       }
     })
-  }, [rawModels, perfMap])
+  }, [rawModels, perfMap, t])
 
   // 4. 获取当前第一个可用主力模型，用于代码示例动态填充
   const primaryModel = useMemo(() => {

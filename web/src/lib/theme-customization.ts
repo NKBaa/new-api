@@ -231,4 +231,3 @@ export function resolveThemeFont(
   }
   return font
 }
-

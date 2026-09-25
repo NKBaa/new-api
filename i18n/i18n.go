@@ -94,6 +94,15 @@ func T(c *gin.Context, key string, args ...map[string]any) string {
 
 // Translate translates a message key for the specified language
 func Translate(lang, key string, args ...map[string]any) string {
+	// bundle 仅在 Init() 后可用；未初始化时直接回退到 key，避免 nil 解引用 panic
+	// （例如单元测试或极早期调用路径）。
+	mu.RLock()
+	initialized := bundle != nil
+	mu.RUnlock()
+	if !initialized {
+		return key
+	}
+
 	loc := GetLocalizer(lang)
 
 	config := &i18n.LocalizeConfig{

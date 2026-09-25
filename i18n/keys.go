@@ -344,3 +344,33 @@ const (
 	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
 	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
 )
+
+// Error sanitization messages (business 9). These keys are emitted for the
+// built-in preset rules and the smart fallback classifier so that sanitized
+// upstream errors follow the caller's language.
+const (
+	MsgSanitizeEmbeddingsUnsupported      = "sanitize.embeddings_unsupported"
+	MsgSanitizeSensitiveContent           = "sanitize.sensitive_content"
+	MsgSanitizeUpstreamOverloaded         = "sanitize.upstream_overloaded"
+	MsgSanitizeUpstreamAccountMissing     = "sanitize.upstream_account_missing"
+	MsgSanitizeNoAvailableChannel         = "sanitize.no_available_channel"
+	MsgSanitizeServiceUnavailable         = "sanitize.service_unavailable"
+	MsgSanitizeResourceNotFound           = "sanitize.resource_not_found"
+	MsgSanitizeUpstreamQuotaExhausted     = "sanitize.upstream_quota_exhausted"
+	MsgSanitizeContextLengthExceeded      = "sanitize.context_length_exceeded"
+	MsgSanitizeUpstreamCredentialsInvalid = "sanitize.upstream_credentials_invalid"
+	MsgSanitizeFallbackRateLimited        = "sanitize.fallback_rate_limited"
+	MsgSanitizeFallbackUnavailable        = "sanitize.fallback_unavailable"
+	MsgSanitizeFallbackNotFound           = "sanitize.fallback_not_found"
+	MsgSanitizeFallbackUnauthorized       = "sanitize.fallback_unauthorized"
+	MsgSanitizeFallbackPayloadTooLarge    = "sanitize.fallback_payload_too_large"
+	MsgSanitizeFallbackUnprocessable      = "sanitize.fallback_unprocessable"
+	MsgSanitizeFallbackContextLength      = "sanitize.fallback_context_length"
+	MsgSanitizeFallbackSensitive          = "sanitize.fallback_sensitive"
+	MsgSanitizeFallbackMediaFormat        = "sanitize.fallback_media_format"
+	MsgSanitizeFallbackToolsUnsupported   = "sanitize.fallback_tools_unsupported"
+	MsgSanitizeFallbackInvalidRequest     = "sanitize.fallback_invalid_request"
+	MsgSanitizeFallbackUpstreamError      = "sanitize.fallback_upstream_error"
+	MsgSanitizeFallbackBadRequest         = "sanitize.fallback_bad_request"
+	MsgSanitizeFallbackUnknown            = "sanitize.fallback_unknown"
+)

@@ -39,7 +39,7 @@ export function Hero({
   totalModelsCount,
 }: HeroProps) {
   const { t } = useTranslation()
-  const { isCopied, copyToClipboard } = useCopyToClipboard()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
   const handleCopyEndpoint = async () => {
     const success = await copyToClipboard(apiBase)
@@ -85,7 +85,7 @@ export function Hero({
             onClick={handleCopyEndpoint}
             className='h-8 shrink-0 gap-1 text-xs font-mono'
           >
-            {isCopied ? (
+            {copiedText === apiBase ? (
               <>
                 <Check className='size-3.5 text-emerald-500' />
                 <span>{t('Copied')}</span>

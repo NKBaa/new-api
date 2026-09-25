@@ -1611,6 +1611,74 @@ test('an Ollama channel marks a saved OpenAI-compatible chat setting in Request 
   })
 })
 
+test('a channel enables pseudo-200 detection in Request & Response and saves its signatures', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+
+  // 默认关闭：自定义特征输入框不展示。
+  const toggle = screen.getByRole('switch', {
+    name: 'Pseudo-200 detection',
+  })
+  expect(toggle).not.toBeChecked()
+  expect(
+    screen.queryByLabelText('Custom blocking signatures')
+  ).not.toBeInTheDocument()
+
+  // 打开后才出现特征输入框。
+  await user.click(toggle)
+  expect(toggle).toBeChecked()
+  const signatures = await screen.findByLabelText('Custom blocking signatures')
+  fireEvent.change(signatures, { target: { value: 'quota_policy_blocked' } })
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { setting: string }
+  expect(JSON.parse(payload.setting)).toMatchObject({
+    pseudo_200_enabled: true,
+    pseudo_200_custom_keywords: 'quota_policy_blocked',
+  })
+})
+
+test('a user without sensitive-write permission cannot toggle the pseudo-200 setting', async () => {
+  useAuthStore.setState({
+    auth: {
+      ...originalAuth,
+      user: {
+        id: 10,
+        username: 'operator',
+        role: ROLE.ADMIN,
+        permissions: {
+          admin_permissions: {
+            channel: { read: true, write: true, operate: true },
+          },
+        },
+      },
+    },
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+
+  // 与官方同类敏感字段（Thinking to Content）行为一致：锁定且点击无效。
+  const official = screen.getByRole('switch', { name: 'Thinking to Content' })
+  const mine = screen.getByRole('switch', { name: 'Pseudo-200 detection' })
+  expect(official).toHaveAttribute('aria-disabled', 'true')
+  expect(mine).toHaveAttribute('aria-disabled', 'true')
+
+  await user.click(mine)
+  expect(mine).not.toBeChecked()
+  // 关闭状态下不展开自定义特征输入框
+  expect(
+    screen.queryByLabelText('Custom blocking signatures')
+  ).not.toBeInTheDocument()
+})
+
 test('an invalid edit switches categories and replaces configured styling with the field error', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)

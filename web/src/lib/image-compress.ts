@@ -16,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
 
 export interface ImageCompressOptions {
   maxDimension: number
   quality?: number
-  allowSvg?: boolean
   allowIco?: boolean
   errorMsg?: string
 }
@@ -33,7 +33,7 @@ export async function compressImageToDataUrl(
   file: File,
   options: ImageCompressOptions
 ): Promise<string> {
-  const { maxDimension, quality = 0.88, allowSvg = true, allowIco = true } = options
+  const { maxDimension, quality = 0.88, allowIco = true } = options
 
   // Handle ICO
   if (
@@ -42,41 +42,26 @@ export async function compressImageToDataUrl(
     file.name.endsWith('.ico')
   ) {
     if (!allowIco) {
-      throw new Error('ICO format is not allowed')
+      throw new Error(t('ICO format is not allowed'))
     }
     if (file.size > 250 * 1024) {
-      throw new Error('Icon file size must not exceed 250KB')
+      throw new Error(t('Icon file size must not exceed 250KB'))
     }
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.addEventListener('load', () => resolve(reader.result as string))
-      reader.addEventListener('error', () => reject(new Error('Failed to read ICO file')))
+      reader.addEventListener('error', () =>
+        reject(new Error(t('Failed to read ICO file')))
+      )
       reader.readAsDataURL(file)
     })
   }
 
-  // Handle SVG
+  // Reject SVG for security reasons
   if (file.type === 'image/svg+xml' || file.name.endsWith('.svg')) {
-    if (!allowSvg) {
-      throw new Error('SVG format is not allowed')
-    }
-    const text = await file.text()
-    const lower = text.toLowerCase()
-    if (
-      lower.includes('<script') ||
-      lower.includes('javascript:') ||
-      lower.includes('onload=') ||
-      lower.includes('onerror=') ||
-      lower.includes('onclick=')
-    ) {
-      throw new Error('SVG contains disallowed script or event handlers')
-    }
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.addEventListener('load', () => resolve(reader.result as string))
-      reader.addEventListener('error', () => reject(new Error('Failed to read SVG file')))
-      reader.readAsDataURL(file)
-    })
+    throw new Error(
+      t('SVG format is not allowed for security reasons. Please use PNG, JPEG, WebP or ICO.')
+    )
   }
 
   // Handle Raster Images (PNG, JPG, WebP)
@@ -129,12 +114,12 @@ export async function compressImageToDataUrl(
         }
       })
       img.addEventListener('error', () => {
-        reject(new Error(options.errorMsg || 'Failed to decode image'))
+        reject(new Error(options.errorMsg || t('Failed to decode image')))
       })
       img.src = reader.result as string
     })
     reader.addEventListener('error', () => {
-      reject(new Error('Failed to read image file'))
+      reject(new Error(t('Failed to read image file')))
     })
     reader.readAsDataURL(file)
   })

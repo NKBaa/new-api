@@ -26,4 +26,7 @@ type ErrorMappingRule struct {
 	ReplaceMsg   string `json:"replace_msg"`   // User-facing sanitized explanation
 	OverrideCode int    `json:"override_code"` // 0 = retain upstream status code
 	Enabled      bool   `json:"enabled"`
+	// MessageKey 仅由内置预设规则使用，用于按请求语言下发文案；
+	// 自定义规则留空，此时直接输出 ReplaceMsg（保持站长原文）。
+	MessageKey string `json:"message_key,omitempty"`
 }

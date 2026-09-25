@@ -25,7 +25,7 @@ import {
   ChevronUp,
   Sparkles,
 } from 'lucide-react'
-import { useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -69,7 +69,8 @@ export function CheckinCalendarCard({
   const [checkinLoading, setCheckinLoading] = useState(false)
   const [turnstileModalVisible, setTurnstileModalVisible] = useState(false)
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
-  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null)
+  const [initialLoaded, setInitialLoaded] = useState(false)
+  const [collapsed, setCollapsed] = useState<boolean>(false)
 
   const currentMonthStr = useMemo(() => {
     const y = currentMonth.getFullYear()
@@ -121,7 +122,14 @@ export function CheckinCalendarCard({
 
   const checkedToday = checkinData?.stats?.checked_in_today === true
   const todayAward = checkinRecordsMap[todayString]
-  const collapsed = userCollapsed ?? (checkedToday && Boolean(checkinData))
+
+  useEffect(() => {
+    if (initialLoaded) return
+    if (isLoading) return
+    if (!checkinData) return
+    setCollapsed(checkedToday)
+    setInitialLoaded(true)
+  }, [checkinData, checkedToday, initialLoaded, isLoading])
 
   const shouldTriggerTurnstile = useCallback(
     (message?: string) => {
@@ -296,7 +304,7 @@ export function CheckinCalendarCard({
             <button
               type='button'
               className='flex min-w-0 flex-1 items-start gap-3 rounded-lg text-left whitespace-normal outline-none'
-              onClick={() => setUserCollapsed(!collapsed)}
+              onClick={() => setCollapsed((v) => !v)}
             >
               <IconBadge tone='neutral' size='lg' className='sm:size-11'>
                 <CalendarDays

@@ -18,8 +18,24 @@ import (
 var (
 	memIPCheckinMutex  sync.Mutex
 	memIPCheckinDate   string
-	memIPCheckinCounts = make(map[string]int)
+	memIPCheckinTokens = make(map[string]map[string]struct{})
 )
+
+const checkinRateLimitScript = `
+local key = KEYS[1]
+local maxCount = tonumber(ARGV[1])
+local token = ARGV[2]
+local expireSecs = tonumber(ARGV[3])
+
+local count = redis.call('SCARD', key)
+if count < maxCount then
+    redis.call('SADD', key, token)
+    redis.call('EXPIRE', key, expireSecs)
+    return 1
+else
+    return 0
+end
+`
 
 // isAutomatedUserAgent 识别常见自动化脚本和 HTTP 客户端库
 func isAutomatedUserAgent(ua string) bool {
@@ -51,47 +67,49 @@ func isAutomatedUserAgent(ua string) bool {
 	return false
 }
 
-// reserveIPCheckin 尝试预留单 IP 今日签到额度，支持 Redis 分布式计数与内存降级
+// reserveIPCheckin 尝试预留单 IP 今日签到额度，支持按唯一 Token 绑定的 Redis 分布式限流与内存降级
 func reserveIPCheckin(clientIP string, maxCount int) (bool, func()) {
 	if maxCount <= 0 {
 		return true, func() {}
 	}
 	today := time.Now().Format("2006-01-02")
+	token := fmt.Sprintf("%d-%s", time.Now().UnixNano(), common.GetUUID()[:8])
+
 	if common.RedisEnabled && common.RDB != nil {
 		ctx := context.Background()
-		key := fmt.Sprintf("checkin:ip:%s:%s", today, clientIP)
-		newCount, err := common.RDB.Incr(ctx, key).Result()
+		key := fmt.Sprintf("checkin:ip:tokens:%s:%s", today, clientIP)
+		res, err := common.RDB.Eval(ctx, checkinRateLimitScript, []string{key}, maxCount, token, int64(48*3600)).Result()
 		if err == nil {
-			_ = common.RDB.Expire(ctx, key, 48*time.Hour).Err()
-			if newCount > int64(maxCount) {
-				// 超过上限，回退递增
-				_ = common.RDB.Decr(ctx, key).Err()
-				return false, func() {}
+			if countAllowed, ok := res.(int64); ok && countAllowed == 1 {
+				// 预留成功，release 仅精准释放当前请求所属的 token，绝不影响其他并发请求
+				release := func() {
+					_ = common.RDB.SRem(context.Background(), key, token).Err()
+				}
+				return true, release
 			}
-			// 预留成功，提供失败回滚函数
-			release := func() {
-				_ = common.RDB.Decr(context.Background(), key).Err()
-			}
-			return true, release
+			return false, func() {}
 		}
-		// Redis 异常降级走内存限制
+		// Redis 异常时降级走内存限制
 	}
 
 	memIPCheckinMutex.Lock()
 	defer memIPCheckinMutex.Unlock()
 	if memIPCheckinDate != today {
 		memIPCheckinDate = today
-		memIPCheckinCounts = make(map[string]int)
+		memIPCheckinTokens = make(map[string]map[string]struct{})
 	}
-	if memIPCheckinCounts[clientIP] >= maxCount {
+	if memIPCheckinTokens[clientIP] == nil {
+		memIPCheckinTokens[clientIP] = make(map[string]struct{})
+	}
+	if len(memIPCheckinTokens[clientIP]) >= maxCount {
 		return false, func() {}
 	}
-	memIPCheckinCounts[clientIP]++
+	memIPCheckinTokens[clientIP][token] = struct{}{}
 	release := func() {
 		memIPCheckinMutex.Lock()
 		defer memIPCheckinMutex.Unlock()
-		if memIPCheckinCounts[clientIP] > 0 {
-			memIPCheckinCounts[clientIP]--
+		if tokens, ok := memIPCheckinTokens[clientIP]; ok {
+			delete(tokens, token)
 		}
 	}
 	return true, release
@@ -180,4 +198,3 @@ func DoCheckin(c *gin.Context) {
 		},
 	})
 }
-

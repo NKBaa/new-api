@@ -101,17 +101,17 @@ func TestGetStatusCustomerService(t *testing.T) {
 	db, _ := newAuditTestDatabase(t, "sqlite", "")
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	model.DB, model.LOG_DB = db, db
-	defer func() {
+	// 用 t.Cleanup 而非 defer：后面的 require 失败会 FailNow，defer 不会执行，
+	// 会把 model.DB / 全局 console_setting 泄漏给同包其它测试。
+	t.Cleanup(func() {
 		model.DB, model.LOG_DB = previousDB, previousLogDB
-	}()
+	})
 
 	cs := console_setting.GetConsoleSetting()
-	origEnabled := cs.CustomerServiceEnabled
-	origCS := cs.CustomerService
-	defer func() {
-		cs.CustomerServiceEnabled = origEnabled
-		cs.CustomerService = origCS
-	}()
+	origCS := *cs
+	t.Cleanup(func() {
+		*cs = origCS
+	})
 
 	// 1. When disabled
 	cs.CustomerServiceEnabled = false

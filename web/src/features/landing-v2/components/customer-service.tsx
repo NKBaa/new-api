@@ -35,9 +35,15 @@ import type { CustomerServiceItem } from '@/features/auth/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useStatus } from '@/hooks/use-status'
 
+function isValidHttpUrl(url?: string): boolean {
+  if (!url) return false
+  const trimmed = url.trim().toLowerCase()
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://')
+}
+
 function CustomerServiceCard({ item }: { item: CustomerServiceItem }) {
   const { t } = useTranslation()
-  const { isCopied, copyToClipboard } = useCopyToClipboard()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const [zoomOpen, setZoomOpen] = useState(false)
 
   const handleCopy = async () => {
@@ -78,7 +84,7 @@ function CustomerServiceCard({ item }: { item: CustomerServiceItem }) {
                 title={t('Copy contact info')}
                 className='size-8 shrink-0 text-muted-foreground hover:text-foreground'
               >
-                {isCopied ? (
+                {copiedText === item.contact ? (
                   <Check className='size-3.5 text-emerald-500' />
                 ) : (
                   <Copy className='size-3.5' />
@@ -123,7 +129,7 @@ function CustomerServiceCard({ item }: { item: CustomerServiceItem }) {
         </div>
 
         {/* Action Button */}
-        {item.link && item.link.trim() !== '' && (
+        {isValidHttpUrl(item.link) && (
           <div className='mt-5 pt-3.5 border-t border-border/60'>
             <Button
               variant='outline'

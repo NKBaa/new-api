@@ -91,6 +91,8 @@ export interface ChannelSettings {
   system_prompt_override?: boolean
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
+  pseudo_200_enabled?: boolean
+  pseudo_200_custom_keywords?: string
 }
 
 export interface ChannelOtherSettings {

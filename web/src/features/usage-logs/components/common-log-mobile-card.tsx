@@ -70,7 +70,9 @@ export function CommonLogMobileCard<TData>(props: {
   const other = parseLogOther(log.other)
   const displayable = isDisplayableLogType(log.type)
   const timing = isTimingLogType(log.type)
-  const isAdmin = props.cells.has('username') || isAdminView
+  // 管理员视图的列集合里包含 'user' 列（普通用户视图不包含），它只由 useCommonLogsColumns 在
+  // isAdmin 时下发，因此可作为「当前表格按管理员构建」的可靠信号。
+  const isAdmin = props.cells.has('user') || isAdminView
   const model = formatModelName(log, isAdmin)
   const config = getLogTypeConfig(log.type)
   const group = log.group || other?.group || ''

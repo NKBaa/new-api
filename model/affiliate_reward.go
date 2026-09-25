@@ -78,12 +78,3 @@ func CreateAffiliateRewardTx(tx *gorm.DB, reference string, userId int, rewardQu
 
 	return nil
 }
-
-// CreateAffiliateReward 幂等入账返佣奖励。
-// reference 在数据库中具有唯一索引（如 topup-123），重复调用会返回 ErrAffiliateRewardAlreadyProcessed，
-// 从而彻底杜绝网络重试或并发回调导致的重复发佣金。
-func CreateAffiliateReward(reference string, userId int, rewardQuota int) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
-		return CreateAffiliateRewardTx(tx, reference, userId, rewardQuota)
-	})
-}

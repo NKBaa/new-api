@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useWatch, type Resolver } from 'react-hook-form'
+import { t } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -71,17 +72,16 @@ const isValidImageUrlOrDataUrl = (val?: string) => {
 
 async function processLogoFile(file: File): Promise<string> {
   if (!file.type.startsWith('image/') && !file.name.endsWith('.ico')) {
-    throw new Error('Please select a valid image file (PNG, JPG, WebP, SVG, ICO)')
+    throw new Error(t('Please select a valid image file (PNG, JPG, WebP, ICO)'))
   }
   if (file.size > 10 * 1024 * 1024) {
-    throw new Error('Image file size must not exceed 10MB')
+    throw new Error(t('Image file size must not exceed 10MB'))
   }
   return compressImageToDataUrl(file, {
     maxDimension: 256,
     quality: 0.9,
-    allowSvg: true,
     allowIco: true,
-    errorMsg: 'Failed to process logo file',
+    errorMsg: t('Failed to process logo file'),
   })
 }
 
@@ -197,11 +197,12 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       },
     })
 
-  const watchedLogo = useWatch({
+  const watchedLogoValue = useWatch({
     control: form.control,
     name: 'Logo',
     defaultValue: defaultValues.Logo || '',
   })
+  const watchedLogo = watchedLogoValue ?? ''
 
   const handleFileSelect = useCallback(
     async (file: File) => {
@@ -399,7 +400,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                           <input
                             ref={fileInputRef}
                             type='file'
-                            accept='image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon'
+                            accept='image/png,image/jpeg,image/webp,image/x-icon'
                             className='hidden'
                             onChange={handleFileInputChange}
                           />
@@ -498,7 +499,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                                     {t('Click or drag logo image here')}
                                   </div>
                                   <div className='mt-1 text-xs text-muted-foreground'>
-                                    {t('Supports PNG, JPG, WebP, SVG, ICO (Ctrl+V to paste screenshot)')}
+                                    {t('Supports PNG, JPG, WebP, ICO (Ctrl+V to paste screenshot)')}
                                   </div>
                                 </>
                               )}

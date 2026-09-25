@@ -32,6 +32,13 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+	// Pseudo200Enabled turns on pseudo-200 sniffer for this channel only.
+	// Every channel decides for itself; there is no global switch.
+	Pseudo200Enabled bool `json:"pseudo_200_enabled,omitempty"`
+	// Pseudo200CustomKeywords appends operator-supplied blocking signatures to
+	// the built-in ones. Accepts newline- or comma-separated values and is
+	// ignored unless Pseudo200Enabled is set.
+	Pseudo200CustomKeywords string `json:"pseudo_200_custom_keywords,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,

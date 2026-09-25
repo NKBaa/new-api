@@ -1,10 +1,12 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
 	"math"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -269,6 +271,7 @@ func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (
 		return true, nil
 	}
 	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "epay topup")
+	markUserEverToppedUp(topUp.UserId)
 
 	common.SysLog(fmt.Sprintf("易支付充值成功 trade_no=%s user_id=%d quota_to_add=%d money=%.2f", topUp.TradeNo, topUp.UserId, quotaToAdd, topUp.Money))
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderEpay)
@@ -300,9 +303,12 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		}
 
 		if topUp.Status == common.TopUpStatusSuccess {
-			quota, _ = topUp.CalculateQuota()
+			// 幂等重放：订单此前已入账，本次只补发缺失的返佣记录。
+			// 这里刻意不回填外层 quota —— 事务外的 syncCreditUserQuotaCache 会把它
+			// 当作本次新到账的增量写进用户额度缓存，导致重复回调时缓存余额被反复抬高。
+			replayQuota, _ := topUp.CalculateQuota()
 			var affErr error
-			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, quota)
+			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, replayQuota)
 			return affErr
 		}
 
@@ -338,9 +344,12 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		return errors.New("充值失败，请稍后重试")
 	}
 	recordAffiliateRewardLog(topUp, affResult)
-	syncCreditUserQuotaCache(topUp.UserId, quota, "stripe topup")
-
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(quota), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	// 幂等重放时外层 quota 保持 0，不得据此写缓存或记账，否则会产生 0 额度流水。
+	if quota > 0 {
+		syncCreditUserQuotaCache(topUp.UserId, quota, "stripe topup")
+		markUserEverToppedUp(topUp.UserId)
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(quota), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	}
 
 	return nil
 }
@@ -526,11 +535,13 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return errors.New("充值订单不存在")
 		}
 
-		// 幂等处理：已成功直接返回
+		// 幂等处理：已成功则只补发缺失的返佣记录。
+		// 不回填 quotaToAdd —— 事务外的 syncCreditUserQuotaCache 依赖它判断本次是否真的
+		// 有新额度到账，回填会让重复补单把同一笔额度反复累加进用户额度缓存。
 		if topUp.Status == common.TopUpStatusSuccess {
-			quotaToAdd, _ = topUp.CalculateQuota()
+			replayQuota, _ := topUp.CalculateQuota()
 			var affErr error
-			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, quotaToAdd)
+			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, replayQuota)
 			return affErr
 		}
 
@@ -584,9 +595,13 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	}
 
 	recordAffiliateRewardLog(topUp, affResult)
-	// 事务外记录日志，避免阻塞
-	syncCreditUserQuotaCache(userId, quotaToAdd, "manual topup")
-	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	// 事务外记录日志，避免阻塞。
+	// 幂等重放时 userId/quotaToAdd 均为零值，必须守卫，否则会写入 userId=0 的 0 额度流水。
+	if quotaToAdd > 0 {
+		syncCreditUserQuotaCache(userId, quotaToAdd, "manual topup")
+		markUserEverToppedUp(userId)
+		RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	}
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -614,9 +629,10 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		}
 
 		if topUp.Status == common.TopUpStatusSuccess {
-			quota, _ = topUp.CalculateQuota()
+			// 幂等重放：只补发返佣，不回填外层 quota，避免重复累加额度缓存。
+			replayQuota, _ := topUp.CalculateQuota()
 			var affErr error
-			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, quota)
+			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, replayQuota)
 			return affErr
 		}
 
@@ -669,9 +685,12 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 	recordAffiliateRewardLog(topUp, affResult)
-	syncCreditUserQuotaCache(topUp.UserId, quota, "creem topup")
-
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	// 幂等重放时外层 quota 保持 0，不得据此写缓存或记账，否则会产生 0 额度流水。
+	if quota > 0 {
+		syncCreditUserQuotaCache(topUp.UserId, quota, "creem topup")
+		markUserEverToppedUp(topUp.UserId)
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	}
 
 	return nil
 }
@@ -701,9 +720,10 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 		}
 
 		if topUp.Status == common.TopUpStatusSuccess {
-			quotaToAdd, _ = topUp.CalculateQuota()
+			// 幂等重放：只补发返佣，不回填外层 quotaToAdd，避免重复累加额度缓存。
+			replayQuota, _ := topUp.CalculateQuota()
 			var affErr error
-			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, quotaToAdd)
+			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, replayQuota)
 			return affErr
 		}
 
@@ -741,6 +761,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "waffo topup")
 
 	if quotaToAdd > 0 {
+		markUserEverToppedUp(topUp.UserId)
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 	}
 
@@ -772,9 +793,10 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 		}
 
 		if topUp.Status == common.TopUpStatusSuccess {
-			quotaToAdd, _ = topUp.CalculateQuota()
+			// 幂等重放：只补发返佣，不回填外层 quotaToAdd，避免重复累加额度缓存。
+			replayQuota, _ := topUp.CalculateQuota()
 			var affErr error
-			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, quotaToAdd)
+			affResult, affErr = processTopUpAffiliateRewardTx(tx, topUp, replayQuota)
 			return affErr
 		}
 
@@ -812,6 +834,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "waffo pancake topup")
 
 	if quotaToAdd > 0 {
+		markUserEverToppedUp(topUp.UserId)
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
 
@@ -838,7 +861,7 @@ func processTopUpAffiliateRewardTx(tx *gorm.DB, topUp *TopUp, creditedQuota int)
 			return nil, nil
 		}
 	}
-	rate := common.AffiliateCommissionRate
+	rate := common.GetAffiliateCommissionRate()
 	if rate <= 0 || rate > 100 || math.IsNaN(rate) || math.IsInf(rate, 0) {
 		return nil, nil
 	}
@@ -917,18 +940,16 @@ func recordAffiliateRewardLog(topUp *TopUp, result *AffiliateRewardResult) {
 	}
 }
 
-func processTopUpAffiliateReward(topUp *TopUp, creditedQuota int) {
-	var result *AffiliateRewardResult
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		var err error
-		result, err = processTopUpAffiliateRewardTx(tx, topUp, creditedQuota)
-		return err
-	})
-	if err != nil {
-		common.SysError(fmt.Sprintf("failed to process affiliate reward for topup %d: %v", topUp.Id, err))
+// markUserEverToppedUp 在充值到账或卡密兑换成功后主动刷新判定缓存，避免
+// HasUserEverToppedUp 的 5 分钟负缓存让刚付费的用户被签到门槛拦下。
+func markUserEverToppedUp(userId int) {
+	if userId <= 0 || !common.RedisEnabled || common.RDB == nil {
 		return
 	}
-	recordAffiliateRewardLog(topUp, result)
+	key := fmt.Sprintf("checkin:user_topped_up:%d", userId)
+	if err := common.RDB.Set(context.Background(), key, "1", 24*time.Hour).Err(); err != nil {
+		common.SysLog("failed to refresh checkin topup cache: " + err.Error())
+	}
 }
 
 // HasUserEverToppedUp 判断用户是否曾经充值成功或兑换过卡密
@@ -936,16 +957,34 @@ func HasUserEverToppedUp(userId int) bool {
 	if userId <= 0 {
 		return false
 	}
-	var count int64
-	// 1. 检查线上充值表 (Stripe, Epay, Creem, Waffo 等)
-	if err := DB.Model(&TopUp{}).Where("user_id = ? AND status = ?", userId, common.TopUpStatusSuccess).Count(&count).Error; err == nil && count > 0 {
+	// 高并发性能优化：Redis 缓存判定结果，避免千万级数据下的重复 DB 压力
+	if common.RedisEnabled && common.RDB != nil {
+		key := fmt.Sprintf("checkin:user_topped_up:%d", userId)
+		val, err := common.RDB.Get(context.Background(), key).Result()
+		if err == nil {
+			return val == "1"
+		}
+	}
+
+	var exists int
+	// 1. 检查线上充值表 (Stripe, Epay, Creem, Waffo 等)，使用 LIMIT 1 避免全表 COUNT
+	if err := DB.Model(&TopUp{}).Select("1").Where("user_id = ? AND status = ?", userId, common.TopUpStatusSuccess).Limit(1).Take(&exists).Error; err == nil {
+		if common.RedisEnabled && common.RDB != nil {
+			_ = common.RDB.Set(context.Background(), fmt.Sprintf("checkin:user_topped_up:%d", userId), "1", 24*time.Hour).Err()
+		}
 		return true
 	}
-	// 2. 检查卡密兑换表 (第三方卡密兑换记录)
-	if err := DB.Model(&Redemption{}).Where("used_user_id = ? AND status = ?", userId, common.RedemptionCodeStatusUsed).Count(&count).Error; err == nil && count > 0 {
+	// 2. 检查卡密兑换表 (第三方卡密兑换记录)，使用 LIMIT 1
+	if err := DB.Model(&Redemption{}).Select("1").Where("used_user_id = ? AND status = ?", userId, common.RedemptionCodeStatusUsed).Limit(1).Take(&exists).Error; err == nil {
+		if common.RedisEnabled && common.RDB != nil {
+			_ = common.RDB.Set(context.Background(), fmt.Sprintf("checkin:user_topped_up:%d", userId), "1", 24*time.Hour).Err()
+		}
 		return true
+	}
+
+	// 未充值结果短期缓存 5 分钟，降低高并发重试压力
+	if common.RedisEnabled && common.RDB != nil {
+		_ = common.RDB.Set(context.Background(), fmt.Sprintf("checkin:user_topped_up:%d", userId), "0", 5*time.Minute).Err()
 	}
 	return false
 }
-
-

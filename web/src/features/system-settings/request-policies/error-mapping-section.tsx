@@ -27,6 +27,7 @@ import {
   Table,
   Trash2,
 } from 'lucide-react'
+import { t } from 'i18next'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -179,7 +180,7 @@ function normalizeRulesFromJson(raw: unknown): ErrorMappingRule[] {
       name:
         typeof item.name === 'string' && item.name.trim()
           ? item.name.trim()
-          : `规则 #${index + 1}`,
+          : t('Rule #{{index}}', { index: index + 1 }),
       match_code:
         typeof item.match_code === 'number'
           ? item.match_code
@@ -402,13 +403,15 @@ export function ErrorMappingSection({
   }, [rules, searchQuery])
 
   return (
-    <SettingsSection
-      title={t('Error Sanitization')}
-      description={t(
-        'Sanitize upstream provider errors to prevent leaking raw internal addresses, credentials, and organizations, returning standardized error causes to clients.'
-      )}
-    >
+    <SettingsSection title={t('Error Sanitization')}>
       <div className='flex flex-col gap-6'>
+        <div className='text-muted-foreground space-y-1 text-sm'>
+          <p>
+            {t(
+              'Sanitize upstream provider errors to prevent leaking raw internal addresses, credentials, and organizations, returning standardized error causes to clients.'
+            )}
+          </p>
+        </div>
         <SettingsPageFormActions
           onSave={handleSaveAll}
           isSaving={updateOption.isPending}
@@ -726,7 +729,7 @@ export function ErrorMappingSection({
                 value={draftReplaceMsg}
                 onChange={(e) => setDraftReplaceMsg(e.target.value)}
                 placeholder={t(
-                  'e.g. 当前模型服务请求量激增或高负载，请稍后重试。'
+                  'e.g. The upstream model is under heavy load, please retry later.'
                 )}
               />
               <span className='text-muted-foreground text-xs'>

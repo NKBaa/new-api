@@ -184,6 +184,9 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			info.PerformanceBusinessRejection = true
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+			streamErr = fmt.Errorf("request blocked by Gemini API: %s", *geminiResponse.PromptFeedback.BlockReason)
+			sr.Stop(streamErr)
+			return
 		}
 		info.ObserveResponseModel(gjson.Get(data, "modelVersion").Str)
 		for _, candidate := range geminiResponse.Candidates {
@@ -209,6 +212,15 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 				if part.Text != "" {
 					responseText.WriteString(part.Text)
 				}
+			}
+		}
+
+		if info.SendResponseCount == 0 {
+			if isPseudo, reason := service.IsPseudo200Error(info.ChannelSetting, responseText.String()); isPseudo {
+				logger.LogWarn(c, fmt.Sprintf("pseudo-200 error detected in Gemini stream chunks: %s", reason))
+				streamErr = errors.New(reason)
+				sr.Stop(streamErr)
+				return
 			}
 		}
 
@@ -247,7 +259,17 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		patchGeminiZeroCompletionUsage(c, info, usage, responseText.String(), imageCount)
 	}
 
+	if isPseudo, reason := service.IsPseudo200Error(info.ChannelSetting, responseText.String()); isPseudo {
+		return nil, service.NewPseudo200Error(reason)
+	}
+
 	if streamErr != nil {
+		if isPseudo, reason := service.IsPseudo200Error(info.ChannelSetting, streamErr.Error()); isPseudo {
+			return nil, service.NewPseudo200Error(reason)
+		}
+		if strings.Contains(streamErr.Error(), "blocked by Gemini API") {
+			return nil, types.NewOpenAIError(streamErr, types.ErrorCodePromptBlocked, http.StatusBadGateway)
+		}
 		return usage, types.NewOpenAIError(streamErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if info.StreamStatus != nil && !info.StreamStatus.IsNormalEnd() {
@@ -388,8 +410,6 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	markGeminiGoogleSearchCall(c, &geminiResponse)
 	countGeminiBillableFunctionCalls(info, &geminiResponse)
 	if len(geminiResponse.Candidates) == 0 {
-		usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
-
 		var newAPIError *types.NewAPIError
 		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			info.PerformanceBusinessRejection = true
@@ -397,7 +417,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 			newAPIError = types.NewOpenAIError(
 				errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),
 				types.ErrorCodePromptBlocked,
-				http.StatusBadRequest,
+				http.StatusBadGateway,
 			)
 		} else {
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "gemini_empty_candidates")
@@ -407,26 +427,19 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 				http.StatusInternalServerError,
 			)
 		}
-
-		service.ResetStatusCode(newAPIError, c.GetString("status_code_mapping"))
-		service.SanitizeRelayError(c, newAPIError)
-
-		switch info.RelayFormat {
-		case types.RelayFormatClaude:
-			c.JSON(newAPIError.StatusCode, gin.H{
-				"type":  "error",
-				"error": newAPIError.ToClaudeError(),
-			})
-		default:
-			c.JSON(newAPIError.StatusCode, gin.H{
-				"error": newAPIError.ToOpenAIError(),
-			})
-		}
-		return &usage, nil
+		return nil, newAPIError
 	}
 	fullTextResponse := responseGeminiChat2OpenAI(c, &geminiResponse)
 	fullTextResponse.Model = info.UpstreamModelName
 	usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
+
+	for _, choice := range fullTextResponse.Choices {
+		content := choice.Message.StringContent()
+		if isPseudo, reason := service.IsPseudo200Error(info.ChannelSetting, content); isPseudo {
+			logger.LogWarn(c, fmt.Sprintf("pseudo-200 error detected in Gemini response: %s", reason))
+			return nil, service.NewPseudo200Error(reason)
+		}
+	}
 
 	fullTextResponse.Usage = usage
 

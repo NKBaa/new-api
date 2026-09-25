@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
+import { t } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -113,16 +114,17 @@ const customerServiceSchema = z.object({
 
 async function processImageFile(file: File): Promise<string> {
   if (!file.type.startsWith('image/')) {
-    throw new Error('Please select a valid image file (PNG, JPG, WebP, SVG)')
+    throw new Error(t('Please select a valid image file (PNG, JPG, WebP)'))
   }
   if (file.size > 10 * 1024 * 1024) {
-    throw new Error('Image file size must not exceed 10MB')
+    throw new Error(t('Image file size must not exceed 10MB'))
   }
   return compressImageToDataUrl(file, {
     maxDimension: 500,
     quality: 0.88,
-    allowSvg: true,
-    errorMsg: 'Failed to process QR code image',
+    // 与服务端 validateCustomerService 保持一致：二维码不接受 ICO。
+    allowIco: false,
+    errorMsg: t('Failed to process QR code image'),
   })
 }
 
@@ -199,11 +201,12 @@ export function CustomerServiceSection({ enabled, data }: CustomerServiceSection
     },
   })
 
-  const watchedQrcode = useWatch({
+  const watchedQrcodeValue = useWatch({
     control: form.control,
     name: 'qrcode',
     defaultValue: '',
   })
+  const watchedQrcode = watchedQrcodeValue ?? ''
 
   const handleFileSelect = useCallback(
     async (file: File) => {
@@ -703,7 +706,7 @@ export function CustomerServiceSection({ enabled, data }: CustomerServiceSection
                         <input
                           ref={fileInputRef}
                           type='file'
-                          accept='image/png,image/jpeg,image/webp,image/svg+xml'
+                          accept='image/png,image/jpeg,image/webp'
                           className='hidden'
                           onChange={handleFileInputChange}
                         />
@@ -756,7 +759,7 @@ export function CustomerServiceSection({ enabled, data }: CustomerServiceSection
                               {!previewImageError ? (
                                 <img
                                   src={watchedQrcode.trim()}
-                                  alt='QR Code Preview'
+                                  alt={t('QR Code Image Preview')}
                                   className='size-36 max-w-full object-contain rounded'
                                   onError={() => setPreviewImageError(true)}
                                 />
@@ -796,7 +799,7 @@ export function CustomerServiceSection({ enabled, data }: CustomerServiceSection
                                   {t('Click or drag QR code image here')}
                                 </div>
                                 <div className='mt-1 text-xs text-muted-foreground'>
-                                  {t('Supports PNG, JPG, WebP, SVG (Ctrl+V to paste screenshot)')}
+                                  {t('Supports PNG, JPG, WebP (Ctrl+V to paste screenshot)')}
                                 </div>
                               </>
                             )}
@@ -806,7 +809,9 @@ export function CustomerServiceSection({ enabled, data }: CustomerServiceSection
                         {/* Manual URL Input when empty and in URL mode */}
                         {!watchedQrcode && inputMode === 'url' && (
                           <Input
-                            placeholder='https://example.com/support-qr.png'
+                            placeholder={t(
+                              'Image URL of the QR code (supports PNG, JPG, WebP, or data URL)'
+                            )}
                             value={field.value || ''}
                             onChange={(e) => {
                               field.onChange(e)

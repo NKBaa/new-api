@@ -320,8 +320,9 @@ func Register(c *gin.Context) {
 	}
 
 	var regRelease func()
-	if common.MaxRegisterNumPerIP > 0 {
-		allowed, release := reserveIPRegister(c.ClientIP(), common.MaxRegisterNumPerIP)
+	maxRegPerIP := common.GetMaxRegisterNumPerIP()
+	if maxRegPerIP > 0 {
+		allowed, release := reserveIPRegister(c.ClientIP(), maxRegPerIP)
 		if !allowed {
 			common.ApiErrorI18n(c, i18n.MsgUserRegisterIPLimitReached)
 			return

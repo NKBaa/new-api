@@ -14,9 +14,23 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func newAntiAbuseTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil && sqlDB != nil {
+			_ = sqlDB.Close()
+		}
+	})
+	return db
+}
 
 func TestAutomatedUserAgentDetection(t *testing.T) {
 	automatedUAs := []string{
@@ -65,7 +79,7 @@ func TestIPCheckinRateLimiterReservation(t *testing.T) {
 	// Reset memory state for testing
 	memIPCheckinMutex.Lock()
 	memIPCheckinDate = time.Now().Format("2006-01-02")
-	memIPCheckinCounts = make(map[string]int)
+	memIPCheckinTokens = make(map[string]map[string]struct{})
 	memIPCheckinMutex.Unlock()
 
 	// maxCount = 0 (unlimited)
@@ -127,7 +141,7 @@ func TestIPRegisterRateLimiterReservation(t *testing.T) {
 }
 
 func TestHasUserEverToppedUp(t *testing.T) {
-	db, _ := newAuditTestDatabase(t, "sqlite", "")
+	db := newAntiAbuseTestDB(t)
 	previousDB := model.DB
 	model.DB = db
 	defer func() {
@@ -176,7 +190,7 @@ func TestHasUserEverToppedUp(t *testing.T) {
 
 func TestDoCheckinAntiAbuseControls(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db, _ := newAuditTestDatabase(t, "sqlite", "")
+	db := newAntiAbuseTestDB(t)
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	model.DB, model.LOG_DB = db, db
 	previousRedisEnabled := common.RedisEnabled
@@ -215,16 +229,11 @@ func TestDoCheckinAntiAbuseControls(t *testing.T) {
 	}).Error)
 
 	setting := operation_setting.GetCheckinSetting()
-	origEnabled := setting.Enabled
-	origRequireTopUp := setting.RequireTopUp
-	origBlockUA := setting.BlockAutomatedUA
-	origMaxIP := setting.MaxCheckinPerIP
-	defer func() {
-		setting.Enabled = origEnabled
-		setting.RequireTopUp = origRequireTopUp
-		setting.BlockAutomatedUA = origBlockUA
-		setting.MaxCheckinPerIP = origMaxIP
-	}()
+	// 快照整个配置结构体，避免只还原部分字段而把改动用例的设置泄漏给同包其它测试。
+	origSetting := *setting
+	t.Cleanup(func() {
+		*setting = origSetting
+	})
 
 	setting.Enabled = true
 	setting.MinQuota = 500
@@ -311,7 +320,7 @@ func TestDoCheckinAntiAbuseControls(t *testing.T) {
 		// Reset memory IP counter
 		memIPCheckinMutex.Lock()
 		memIPCheckinDate = time.Now().Format("2006-01-02")
-		memIPCheckinCounts = make(map[string]int)
+		memIPCheckinTokens = make(map[string]map[string]struct{})
 		memIPCheckinMutex.Unlock()
 
 		ip := "192.168.1.88:1234"
@@ -354,7 +363,7 @@ func TestDoCheckinAntiAbuseControls(t *testing.T) {
 
 func TestRegisterRateLimitPerIP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db, _ := newAuditTestDatabase(t, "sqlite", "")
+	db := newAntiAbuseTestDB(t)
 	previousDB := model.DB
 	model.DB = db
 	previousRedisEnabled := common.RedisEnabled

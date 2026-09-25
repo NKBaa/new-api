@@ -321,12 +321,11 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 		if openAIError, ok := e.RelayError.(OpenAIError); ok {
 			codeStr := fmt.Sprintf("%v", openAIError.Code)
 			claudeType := codeStr
+			// SanitizeFields 会把已脱敏错误的 Type 置为 StandardOpenAIFields 的取值，
+			// 而这些取值本身就是合法的 Claude 错误类型，故仅此一步即可让 Claude 客户端
+			// 拿到标准化类型；未脱敏错误的 Type 仍是原始 ErrorCode，行为与官方完全一致。
 			if isKnownClaudeErrorType(openAIError.Type) {
 				claudeType = openAIError.Type
-			} else if isKnownClaudeErrorType(codeStr) {
-				claudeType = codeStr
-			} else if e.StatusCode > 0 {
-				claudeType = StandardClaudeType(e.StatusCode)
 			}
 			result = ClaudeError{
 				Message: e.Error(),

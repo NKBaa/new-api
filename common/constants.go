@@ -127,13 +127,64 @@ var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 var AffiliateCommissionRate = 0.0
-var DefaultThemeSettings = ""
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
 var QuotaRemindThreshold = 1000
 var ErrorSanitizationEnabled = true
 var ErrorMappingRules = ""
+
+var customConfigRWMutex sync.RWMutex
+
+func GetAffiliateCommissionRate() float64 {
+	customConfigRWMutex.RLock()
+	defer customConfigRWMutex.RUnlock()
+	return AffiliateCommissionRate
+}
+
+func SetAffiliateCommissionRate(rate float64) {
+	customConfigRWMutex.Lock()
+	defer customConfigRWMutex.Unlock()
+	AffiliateCommissionRate = rate
+}
+
+func IsErrorSanitizationEnabled() bool {
+	customConfigRWMutex.RLock()
+	defer customConfigRWMutex.RUnlock()
+	return ErrorSanitizationEnabled
+}
+
+func SetErrorSanitizationEnabled(enabled bool) {
+	customConfigRWMutex.Lock()
+	defer customConfigRWMutex.Unlock()
+	ErrorSanitizationEnabled = enabled
+}
+
+func GetMaxRegisterNumPerIP() int {
+	customConfigRWMutex.RLock()
+	defer customConfigRWMutex.RUnlock()
+	return MaxRegisterNumPerIP
+}
+
+func SetMaxRegisterNumPerIP(n int) {
+	customConfigRWMutex.Lock()
+	defer customConfigRWMutex.Unlock()
+	MaxRegisterNumPerIP = n
+}
+
+var errorMappingRulesMutex sync.RWMutex
+
+func GetErrorMappingRules() string {
+	errorMappingRulesMutex.RLock()
+	defer errorMappingRulesMutex.RUnlock()
+	return ErrorMappingRules
+}
+
+func UpdateErrorMappingRules(rules string) {
+	errorMappingRulesMutex.Lock()
+	defer errorMappingRulesMutex.Unlock()
+	ErrorMappingRules = rules
+}
 
 // PreConsumedQuota is retained for old option clients; token reservations now
 // use quota_setting.pre_consume_multiplier and the estimated input cost.

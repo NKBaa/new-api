@@ -10,6 +10,27 @@ import (
 	"gorm.io/gorm"
 )
 
+func processTopUpAffiliateReward(topUp *TopUp, creditedQuota int) {
+	var result *AffiliateRewardResult
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		result, err = processTopUpAffiliateRewardTx(tx, topUp, creditedQuota)
+		return err
+	})
+	if err != nil {
+		common.SysError("failed to process affiliate reward for topup: " + err.Error())
+		return
+	}
+	recordAffiliateRewardLog(topUp, result)
+}
+
+// createAffiliateRewardForTest 以独立事务调用生产侧的幂等入账逻辑。
+func createAffiliateRewardForTest(reference string, userId int, rewardQuota int) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return CreateAffiliateRewardTx(tx, reference, userId, rewardQuota)
+	})
+}
+
 func TestCreateAffiliateReward(t *testing.T) {
 	setupUserUpdateTestState(t)
 
@@ -27,13 +48,13 @@ func TestCreateAffiliateReward(t *testing.T) {
 	require.NoError(t, DB.Create(&inviter).Error)
 
 	// 1. Invalid params check
-	assert.ErrorIs(t, CreateAffiliateReward("", 100, 500), ErrInvalidAffiliateReward)
-	assert.ErrorIs(t, CreateAffiliateReward("topup-1", 0, 500), ErrInvalidAffiliateReward)
-	assert.ErrorIs(t, CreateAffiliateReward("topup-1", 100, 0), ErrInvalidAffiliateReward)
-	assert.ErrorIs(t, CreateAffiliateReward("topup-1", 100, -10), ErrInvalidAffiliateReward)
+	assert.ErrorIs(t, createAffiliateRewardForTest("", 100, 500), ErrInvalidAffiliateReward)
+	assert.ErrorIs(t, createAffiliateRewardForTest("topup-1", 0, 500), ErrInvalidAffiliateReward)
+	assert.ErrorIs(t, createAffiliateRewardForTest("topup-1", 100, 0), ErrInvalidAffiliateReward)
+	assert.ErrorIs(t, createAffiliateRewardForTest("topup-1", 100, -10), ErrInvalidAffiliateReward)
 
 	// 2. Successful reward creation
-	err := CreateAffiliateReward("topup-1", 100, 700)
+	err := createAffiliateRewardForTest("topup-1", 100, 700)
 	require.NoError(t, err)
 
 	// Verify inviter's aff_quota and aff_history updated
@@ -43,7 +64,7 @@ func TestCreateAffiliateReward(t *testing.T) {
 	assert.Equal(t, 2700, updatedInviter.AffHistoryQuota)
 
 	// 3. Duplicate reference (Idempotency test)
-	dupErr := CreateAffiliateReward("topup-1", 100, 700)
+	dupErr := createAffiliateRewardForTest("topup-1", 100, 700)
 	assert.ErrorIs(t, dupErr, ErrAffiliateRewardAlreadyProcessed)
 
 	// Verify balances remained intact
@@ -374,14 +395,18 @@ func TestRechargeEpayAffiliateRewardTransactionAtomicity(t *testing.T) {
 			tx.AddError(errors.New("simulated affiliate reward database failure"))
 		}
 	}))
+	// 兜底注销：用例中途 require 失败会 FailNow，下面的顺序清理不会执行，
+	// 回调残留会影响同包其它测试。正常情况下第 2 次重试前已手动注销。
+	t.Cleanup(func() {
+		if err := DB.Callback().Create().Remove(callbackName); err != nil {
+			t.Logf("failed to remove gorm callback %s: %v", callbackName, err)
+		}
+	})
 
 	// Attempt recharge: should fail because affiliate reward settlement fails in-transaction
 	alreadyDone, err := RechargeEpay("epay-atomicity-test-999", "alipay", "127.0.0.1")
 	require.Error(t, err)
 	assert.False(t, alreadyDone)
-
-	// Clean up callback
-	require.NoError(t, DB.Callback().Create().Remove(callbackName))
 
 	// Verify atomicity: entire transaction rolled back!
 	// 1. Order status is still Pending
@@ -406,6 +431,7 @@ func TestRechargeEpayAffiliateRewardTransactionAtomicity(t *testing.T) {
 	assert.Zero(t, affCount)
 
 	// Now retry the callback after the simulated transient DB issue resolved:
+	require.NoError(t, DB.Callback().Create().Remove(callbackName))
 	alreadyDone, err = RechargeEpay("epay-atomicity-test-999", "alipay", "127.0.0.1")
 	require.NoError(t, err)
 	assert.False(t, alreadyDone)
@@ -424,5 +450,3 @@ func TestRechargeEpayAffiliateRewardTransactionAtomicity(t *testing.T) {
 	require.NoError(t, DB.Model(&AffiliateReward{}).Where("reference = ?", "topup-999").Count(&affCount).Error)
 	assert.EqualValues(t, 1, affCount)
 }
-
-

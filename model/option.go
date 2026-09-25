@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/base64"
 	"fmt"
 	"maps"
 	"math"
@@ -148,7 +149,9 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["AffiliateCommissionRate"] = strconv.FormatFloat(common.AffiliateCommissionRate, 'f', -1, 64)
 	common.OptionMap["AffiliateDescription"] = ""
-	common.OptionMap["DefaultThemeSettings"] = common.DefaultThemeSettings
+	// 全站默认外观由 options.DefaultThemeSettings 承载，前端经 /api/status 读取；
+	// 后端无需在内存中保留副本，故不设 common 变量（避免无锁写入）。
+	common.OptionMap["DefaultThemeSettings"] = ""
 	common.OptionMap["ErrorSanitizationEnabled"] = strconv.FormatBool(common.ErrorSanitizationEnabled)
 	common.OptionMap["ErrorMappingRules"] = common.ErrorMappingRules
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
@@ -271,8 +274,40 @@ func validateOptionValue(key string, value string) error {
 			if strings.Contains(lower, "<script") || strings.Contains(lower, "javascript:") {
 				return fmt.Errorf("Logo 包含不允许的内容")
 			}
-			if !strings.HasPrefix(value, "data:image/") &&
-				!strings.HasPrefix(value, "http://") &&
+			if strings.HasPrefix(value, "data:image/") {
+				if strings.HasPrefix(lower, "data:image/svg") || strings.Contains(lower, "image/svg+xml") {
+					return fmt.Errorf("Logo 不支持 SVG 格式")
+				}
+				validPrefixes := []string{
+					"data:image/png;base64,",
+					"data:image/jpeg;base64,",
+					"data:image/jpg;base64,",
+					"data:image/webp;base64,",
+					"data:image/gif;base64,",
+					"data:image/x-icon;base64,",
+					"data:image/vnd.microsoft.icon;base64,",
+				}
+				matchedPrefix := ""
+				for _, p := range validPrefixes {
+					if strings.HasPrefix(lower, p) {
+						matchedPrefix = p
+						break
+					}
+				}
+				if matchedPrefix == "" {
+					return fmt.Errorf("Logo 图片格式不受支持或缺少 base64 编码")
+				}
+				decoded, err := base64.StdEncoding.DecodeString(value[len(matchedPrefix):])
+				if err != nil {
+					return fmt.Errorf("Logo base64 数据解析失败")
+				}
+				decodedLower := strings.ToLower(string(decoded))
+				if strings.Contains(decodedLower, "<svg") || strings.Contains(decodedLower, "<?xml") ||
+					strings.Contains(decodedLower, "<script") || strings.Contains(decodedLower, "javascript:") ||
+					strings.Contains(decodedLower, "onload=") || strings.Contains(decodedLower, "onerror=") {
+					return fmt.Errorf("Logo 内容包含不允许的脚本或 SVG 矢量数据")
+				}
+			} else if !strings.HasPrefix(value, "http://") &&
 				!strings.HasPrefix(value, "https://") &&
 				!strings.HasPrefix(value, "/") &&
 				!strings.HasPrefix(value, "./") {
@@ -500,7 +535,7 @@ func updateOptionMap(key string, value string) (err error) {
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
 		case "ErrorSanitizationEnabled":
-			common.ErrorSanitizationEnabled = boolValue
+			common.SetErrorSanitizationEnabled(boolValue)
 		}
 	}
 	if key == setting.TaskPluginDisabledFactoryKeysKey {
@@ -653,15 +688,14 @@ func updateOptionMap(key string, value string) (err error) {
 	case "AffiliateCommissionRate":
 		parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
 		if err == nil && !math.IsNaN(parsed) && !math.IsInf(parsed, 0) && parsed >= 0 && parsed <= 100 {
-			common.AffiliateCommissionRate = parsed
+			common.SetAffiliateCommissionRate(parsed)
 		}
 	case "AffiliateDescription":
-	case "DefaultThemeSettings":
-		common.DefaultThemeSettings = value
 	case "ErrorMappingRules":
-		common.ErrorMappingRules = value
+		common.UpdateErrorMappingRules(value)
 	case "MaxRegisterNumPerIP":
-		common.MaxRegisterNumPerIP, _ = strconv.Atoi(value)
+		n, _ := strconv.Atoi(value)
+		common.SetMaxRegisterNumPerIP(n)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

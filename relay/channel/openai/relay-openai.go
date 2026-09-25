@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -120,16 +121,33 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 保留倒数第二个stream data；部分兼容网关把完整usage放在倒数第二个事件
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
+	var pseudoErrorDetected bool
+	var pseudoErrorReason string
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-		if lastStreamData != "" {
-			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
-				common.SysLog("error handling stream format: " + err.Error())
-				sr.Error(err)
-			}
-		}
 		if len(data) > 0 {
+			// 在向客户端发送上一个 chunk (lastStreamData) 之前，先检查当前 chunk 是否命中伪 200 拦截！
+			// 如果命中了伪 200，绝不下发任何历史缓存帧（确保客户端 Socket 0 字节下发，SendResponseCount 保持 0）
+			if info.SendResponseCount == 0 {
+				candidate := data
+				if responseTextBuilder.Len() > 0 {
+					candidate = responseTextBuilder.String() + data
+				}
+				if isPseudo, reason := service.IsPseudo200Error(info.ChannelSetting, candidate); isPseudo {
+					logger.LogWarn(c, fmt.Sprintf("pseudo-200 error detected in incoming stream chunk: %s", reason))
+					pseudoErrorDetected = true
+					pseudoErrorReason = reason
+					lastStreamData = "" // 清空缓冲帧，防止后续泄露给客户端
+					sr.Stop(errors.New(reason))
+					return
+				}
+			}
+
 			if lastStreamData != "" {
+				if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
+					common.SysLog("error handling stream format: " + err.Error())
+					sr.Error(err)
+				}
 				secondLastStreamData = lastStreamData
 			}
 
@@ -139,10 +157,36 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 				logger.LogError(c, "error processing stream token data: "+err.Error())
 				sr.Error(err)
 			}
+			// 仅在尚未下发给客户端 (SendResponseCount == 0) 时进行伪 200 探测，避免长流 O(n^2) 耗时与误报
+			if info.SendResponseCount == 0 {
+				accumulatedText := responseTextBuilder.String()
+				if isPseudo, reason := service.IsPseudo200Error(info.ChannelSetting, accumulatedText); isPseudo {
+					logger.LogWarn(c, fmt.Sprintf("pseudo-200 error detected in stream chunks: %s", reason))
+					pseudoErrorDetected = true
+					pseudoErrorReason = reason
+					lastStreamData = ""
+					sr.Stop(errors.New(reason))
+					return
+				}
+			}
 		}
 	})
 
 	info.StreamStatus.RequireTerminal()
+
+	if pseudoErrorDetected || info.SendResponseCount == 0 {
+		textToCheck := responseTextBuilder.String()
+		if textToCheck == "" {
+			textToCheck = lastStreamData
+		}
+		if isPseudo, reason := service.IsPseudo200Error(info.ChannelSetting, textToCheck); isPseudo || pseudoErrorDetected {
+			if reason == "" {
+				reason = pseudoErrorReason
+			}
+			logger.LogWarn(c, fmt.Sprintf("pseudo-200 error confirmed in stream: %s", reason))
+			return nil, service.NewPseudo200Error(reason)
+		}
+	}
 
 	// 处理最后的响应
 	shouldSendLastResp := true
@@ -280,6 +324,14 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+
+	for _, choice := range simpleResponse.Choices {
+		content := choice.Message.StringContent()
+		if isPseudo, reason := service.IsPseudo200Error(info.ChannelSetting, content); isPseudo {
+			logger.LogWarn(c, fmt.Sprintf("pseudo-200 error detected in choice content: %s", reason))
+			return nil, service.NewPseudo200Error(reason)
+		}
 	}
 
 	info.ObserveResponseModel(simpleResponse.Model)

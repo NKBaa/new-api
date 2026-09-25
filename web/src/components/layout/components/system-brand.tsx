@@ -51,8 +51,7 @@ export function SystemBrand(props: SystemBrandProps) {
   const { logo } = useSystemConfig()
 
   const variant = props.variant ?? 'sidebar'
-  const rawName = status?.system_name || props.defaultName || ''
-  const name = rawName === 'New API' ? '' : rawName
+  const name = status?.system_name || props.defaultName || 'New API'
   const version =
     status?.version || props.defaultVersion || t('Unknown version')
 
