@@ -12,6 +12,70 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestIsPseudo200ErrorBuiltinRules 逐条覆盖 pseudo200Rules 中的每一条内置指纹
+// （含噪声前缀剥离），并给出近似但**不应**命中的对照，锁定「首部锚定 + 特征共现」
+// 的判定语义。新增或修改内置规则时必须同步此表。
+func TestIsPseudo200ErrorBuiltinRules(t *testing.T) {
+	enabled := dto.ChannelSettings{Pseudo200Enabled: true}
+
+	tests := []struct {
+		name      string
+		content   string
+		wantMatch bool
+		wantWhat  string // 命中的指纹类别，仅 wantMatch=true 时校验
+	}{
+		// --- 提示词提交失败 ---
+		{"could not be submitted", "The prompt could not be submitted.", true, "submission"},
+		{"cannot be submitted", "The prompt cannot be submitted.", true, "submission"},
+		// --- 敏感词拦截（需违规语义共现）---
+		{"prompt contains sensitive words + violate", "The prompt contains sensitive words that violate policy.", true, "sensitive"},
+		{"this prompt contains sensitive words + blocked", "This prompt contains sensitive words and was blocked.", true, "sensitive"},
+		// --- Google Prohibited Use Policy（需点名政策）---
+		{"this request violates + policy", "This request violates Google's Generative AI Prohibited Use policy.", true, "policy"},
+		{"the request violates + policy", "The request violates the Prohibited Use Policy.", true, "policy"},
+		{"the request was blocked + policy", "The request was blocked by the Prohibited Use Policy.", true, "policy"},
+		{"the request has been blocked + policy", "The request has been blocked under the Prohibited Use Policy.", true, "policy"},
+		{"request was blocked + policy", "Request was blocked: Prohibited Use Policy.", true, "policy"},
+		// --- 安全过滤器 ---
+		{"blocked by safety filters", "prompt blocked by safety filters", true, "safety"},
+		{"safety: prompt was blocked", "safety: the prompt was blocked", true, "safety"},
+		{"blocked due to safety", "The prompt was blocked due to safety.", true, "safety"},
+		{"blocked by safety", "The prompt was blocked by safety settings.", true, "safety"},
+		// --- 噪声前缀剥离后仍应命中 ---
+		{"error: prefix stripped", "Error: The prompt could not be submitted.", true, "submission"},
+		{"[ERROR] prefix stripped", "[ERROR] the prompt could not be submitted", true, "submission"},
+		{"google api error prefix stripped", "Google API error: the request was blocked by Prohibited Use Policy", true, "policy"},
+		// --- 不应命中：缺少共现条件 ---
+		{"policy named without blocking verb", "This document explains the Prohibited Use Policy.", false, ""},
+		{"sensitive words without policy verb", "The prompt contains sensitive words.", false, ""},
+		// --- 不应命中：前缀未锚定在开头 ---
+		{"refusal phrase not at start", "Note that the prompt could not be submitted yesterday.", false, ""},
+		{"quoted refusal phrase", "If the API says 'the prompt could not be submitted', catch it.", false, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matched, reason := IsPseudo200Error(enabled, tt.content)
+			assert.Equal(t, tt.wantMatch, matched, "content: %q", tt.content)
+			if !tt.wantMatch {
+				assert.Empty(t, reason)
+				return
+			}
+			assert.NotEmpty(t, reason)
+			switch tt.wantWhat {
+			case "submission":
+				assert.Contains(t, reason, "submission")
+			case "sensitive":
+				assert.Contains(t, reason, "sensitive words")
+			case "policy":
+				assert.Contains(t, reason, "Prohibited Use policy")
+			case "safety":
+				assert.Contains(t, reason, "safety")
+			}
+		})
+	}
+}
+
 func TestIsPseudo200Error(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -191,6 +255,43 @@ func TestIsPseudo200ErrorChannelCustomKeywords(t *testing.T) {
 		"upstream says quota_policy_blocked",
 	)
 	assert.False(t, matched, "custom keywords require the channel switch")
+}
+
+// TestIsPseudo200ErrorCustomKeywordsAreAdditive 固化「叠加」语义：自定义特征是在
+// 内置指纹**之外追加**，而不是替换。配置了自定义特征后，内置指纹必须依然命中。
+func TestIsPseudo200ErrorCustomKeywordsAreAdditive(t *testing.T) {
+	// 一段命中的是内置指纹（首部锚定）而非自定义特征的正文
+	builtinBlocked := "The prompt could not be submitted. The prompt contains sensitive words that violate Google's Generative AI Prohibited Use policy."
+
+	// 基线：无自定义特征时，内置指纹命中
+	matched, builtinReason := IsPseudo200Error(
+		dto.ChannelSettings{Pseudo200Enabled: true},
+		builtinBlocked,
+	)
+	assert.True(t, matched, "built-in signature matches on its own")
+	assert.NotContains(t, builtinReason, "custom keyword")
+
+	// 配置自定义特征后，内置指纹**仍然**命中（未被替换）
+	matched, reason := IsPseudo200Error(
+		dto.ChannelSettings{
+			Pseudo200Enabled:        true,
+			Pseudo200CustomKeywords: "totally_unrelated_signature",
+		},
+		builtinBlocked,
+	)
+	assert.True(t, matched, "adding custom keywords must not disable the built-in signatures")
+	assert.Equal(t, builtinReason, reason, "the built-in signature must still take precedence")
+
+	// 同一渠道上，自定义特征独立生效（两者共存）
+	matched, reason = IsPseudo200Error(
+		dto.ChannelSettings{
+			Pseudo200Enabled:        true,
+			Pseudo200CustomKeywords: "totally_unrelated_signature",
+		},
+		"upstream replied totally_unrelated_signature",
+	)
+	assert.True(t, matched, "custom keyword still works alongside built-ins")
+	assert.Contains(t, reason, "custom keyword matched")
 }
 
 // TestShouldDisableChannelNeverBansPromptBlocked 验证提示词级拦截永远不封渠道，
