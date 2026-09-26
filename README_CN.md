@@ -240,7 +240,7 @@ git apply new-api-official-11-businesses.patch
 | 项 | 状态 |
 |---|---|
 | 推送到 GitHub | ✅ `github.com/NKBaa/new-api` 的 `main` 分支 |
-| 自动构建 Docker 镜像 | ✅ 构建成功（18分7秒） |
+| 自动构建 Docker 镜像 | ✅ 构建成功（25分3秒） |
 | 镜像地址 | `ghcr.io/nkbaa/new-api:latest` |
 | 旧版本清理 | ✅ 已删（但内容完整归档，随时可取回） |
 

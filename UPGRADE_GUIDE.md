@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `82d3d7035` |
+| 当前交付提交 | `cb668037e` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **120 文件** = 34 新增 + 86 修改 + **0 删除** |
 | 其中非业务文件 | 5 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`PORTING_GUIDE.md`(A，后已删除)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -31,7 +31,10 @@ d04c118c8 (官方基线)
                             └── 6238ccde4   (文档)
                                     └── 962432cf0   (i18n 命名空间修复)
                                             └── 4f3acda7e   (规则覆盖测试)
-                                                    └── 82d3d7035   (= 本仓库 HEAD，规则可编辑)
+                                                    └── 82d3d7035   (规则可编辑)
+                                                            └── 49f5cb862   (文档)
+                                                                    └── 0edf27455   (文档同步)
+                                                                            └── cb668037e   (= 本仓库 HEAD，分隔符容错)
 ```
 
 **因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动。** 若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成：
@@ -149,7 +152,7 @@ AI 修改本仓库时必须同时满足：
 
 ### B11 · 伪 200 拦截与渠道重试（★ 设计已变更两次，务必按新版）
 - **文件**：`service/pseudo_error_detector.go`(新)、`service/pseudo_error_detector_test.go`(新)、`relaykit/dto/channel_settings.go`、`controller/channel.go`、`router/channel-router.go`、`router/channel_router_test.go`、`relay/channel/openai/relay-openai.go`、`relay/channel/gemini/relay-gemini.go`、`relay/channel/{openai,gemini}/pseudo_200_test.go`(新)、`service/channel.go`、`web/src/features/channels/**`（types / channel-form / channel-configuration / channel-actions / api / channel-mutate-drawer / 4 个测试）
-- **符号**：`IsPseudo200Error(settings dto.ChannelSettings, content string) (bool, string)`、`NewPseudo200Error(reason)`、`GetChannelDefaultPseudo200Rules()`、`MaxPseudo200Length()`、`maxPseudo200Length = 400`、`parsePseudo200Rules` / `matchPseudo200Rules`
+- **符号**：`IsPseudo200Error(settings dto.ChannelSettings, content string) (bool, string)`、`NewPseudo200Error(reason)`、`GetChannelDefaultPseudo200Rules()`、`MaxPseudo200Length()`、`maxPseudo200Length = 400`、`parsePseudo200Rules` / `matchPseudo200Rules` / `pseudo200RequiresSeparators`、`pseudo200Rule{prefix, requires}`（**无 `reason` 字段**：命中即以该条 `prefix` 作为日志标识，保证「留空用内置」与「回填后保存」两条路径日志一致）
 - **存储**：**渠道级**，写在既有的 `channels.setting` TEXT 列（JSON）里，键 `pseudo_200_enabled` / `pseudo_200_custom_keywords` / `pseudo_200_rules` —— `model/channel.go` **零改动** → **0 DDL**
 - **接口**：`GET /api/channel/default_pseudo_200_rules`（`authz.ChannelRead`）下发 `{rules, max_chars}`，用于渠道表单开启检测时回填内置规则。
 - **⚠️ 关键设计（与历史版本不同，不要照抄旧文档）**：
@@ -182,6 +185,10 @@ AI 修改本仓库时必须同时满足：
 - **前端 UI**：渠道编辑抽屉 →「**请求与响应**」(Request & Response) 标签 → Request processing 卡片内：一个渠道级开关；开关打开后出现**可编辑规则 `Textarea`**（首次开启自动回填内置规则）与「**恢复默认**」按钮，其下另有「追加特征」`Textarea`。
   - 「恢复默认」复用既有 i18n 键 `Restore defaults`，未新增词条。
   - 清空规则框 = 回退内置表（与后端 `Pseudo200Rules == ""` 语义一致）。
+- **⚠️ 共现特征的分隔符必须容错**（已踩过，属"静默失效"型缺陷）：`requires` 原本只认半角逗号，导致操作者按直觉输入后**前缀能命中但 requires 永远匹配不上，界面无任何提示**。两种真实触发方式：
+  1. **全角逗号 `，`**（严重）：中文输入法默认打出全角逗号，`a | b，c` 会把 `b，c` 当成**一个**特征。而同一界面上的「自定义拦截特征」框（`splitCustomKeywords`）**已经支持** `，`，两处行为必须一致；
+  2. **多余的 `|`**：`a | b | c` 只取第一个 `|` 作分隔，`b | c` 成为单个特征。
+  归一化用 `pseudo200RequiresSeparators`（`strings.NewReplacer("|", ",", "，", ",")`），解析前统一替换。回归测试 `TestIsPseudo200ErrorChannelRulesSeparatorTolerance` 覆盖 6 种写法 + 3 个反向对照（容错**不得**削弱共现要求、前缀空白与大小写须归一、只有 `|` 无前缀的行必须忽略而非"匹配一切"）。
 - **移植注意（易错点，均已踩过）**：
   1. `channel-configuration.ts` 的 `configured.requestProcessing` **必须**包含 `values.pseudo_200_enabled`，否则开关打开后卡片不显示「Configured」徽标；
   2. `channel-mutate-drawer.tsx` 的 `SENSITIVE_FORM_FIELDS` **必须**登记**三个**新字段（enabled / custom_keywords / rules），与同组官方字段权限行为一致；
