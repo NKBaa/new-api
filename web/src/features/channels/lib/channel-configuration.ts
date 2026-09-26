@@ -66,6 +66,7 @@ const CONFIGURATION_BLOCKS = {
       'system_prompt_override',
       'pseudo_200_enabled',
       'pseudo_200_custom_keywords',
+      'pseudo_200_rules',
     ],
   },
   fieldPassthrough: {

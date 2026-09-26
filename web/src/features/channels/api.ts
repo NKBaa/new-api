@@ -164,6 +164,23 @@ export async function getChannelDefaultBaseURLs(): Promise<
   return requireServerSuccess(response.data).data
 }
 
+export interface ChannelDefaultPseudo200Rules {
+  rules: string
+  max_chars: number
+}
+
+/**
+ * Built-in pseudo-200 signatures rendered as editable text, used to prefill the
+ * channel form when detection is switched on.
+ */
+export async function getChannelDefaultPseudo200Rules(): Promise<ChannelDefaultPseudo200Rules> {
+  const response = await api.get<{
+    success: boolean
+    data: ChannelDefaultPseudo200Rules
+  }>('/api/channel/default_pseudo_200_rules')
+  return requireServerSuccess(response.data).data
+}
+
 /**
  * Create new channel(s)
  * Supports single, batch, and multi-key modes

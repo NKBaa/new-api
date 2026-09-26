@@ -10,41 +10,43 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestIsPseudo200ErrorBuiltinRules 逐条覆盖 pseudo200Rules 中的每一条内置指纹
 // （含噪声前缀剥离），并给出近似但**不应**命中的对照，锁定「首部锚定 + 特征共现」
-// 的判定语义。新增或修改内置规则时必须同步此表。
+// 的判定语义。命中时 reason 必须**恰好**等于该条规则的 prefix，这样渠道把内置表
+// 复制出来编辑后，日志仍能精确指向生效的那条特征。新增或修改内置规则时必须同步此表。
 func TestIsPseudo200ErrorBuiltinRules(t *testing.T) {
 	enabled := dto.ChannelSettings{Pseudo200Enabled: true}
 
 	tests := []struct {
-		name      string
-		content   string
-		wantMatch bool
-		wantWhat  string // 命中的指纹类别，仅 wantMatch=true 时校验
+		name       string
+		content    string
+		wantMatch  bool
+		wantReason string // 命中时的准确 prefix
 	}{
 		// --- 提示词提交失败 ---
-		{"could not be submitted", "The prompt could not be submitted.", true, "submission"},
-		{"cannot be submitted", "The prompt cannot be submitted.", true, "submission"},
+		{"could not be submitted", "The prompt could not be submitted.", true, "the prompt could not be submitted"},
+		{"cannot be submitted", "The prompt cannot be submitted.", true, "the prompt cannot be submitted"},
 		// --- 敏感词拦截（需违规语义共现）---
-		{"prompt contains sensitive words + violate", "The prompt contains sensitive words that violate policy.", true, "sensitive"},
-		{"this prompt contains sensitive words + blocked", "This prompt contains sensitive words and was blocked.", true, "sensitive"},
+		{"prompt contains sensitive words + violate", "The prompt contains sensitive words that violate policy.", true, "the prompt contains sensitive words"},
+		{"this prompt contains sensitive words + blocked", "This prompt contains sensitive words and was blocked.", true, "this prompt contains sensitive words"},
 		// --- Google Prohibited Use Policy（需点名政策）---
-		{"this request violates + policy", "This request violates Google's Generative AI Prohibited Use policy.", true, "policy"},
-		{"the request violates + policy", "The request violates the Prohibited Use Policy.", true, "policy"},
-		{"the request was blocked + policy", "The request was blocked by the Prohibited Use Policy.", true, "policy"},
-		{"the request has been blocked + policy", "The request has been blocked under the Prohibited Use Policy.", true, "policy"},
-		{"request was blocked + policy", "Request was blocked: Prohibited Use Policy.", true, "policy"},
+		{"this request violates + policy", "This request violates Google's Generative AI Prohibited Use policy.", true, "this request violates"},
+		{"the request violates + policy", "The request violates the Prohibited Use Policy.", true, "the request violates"},
+		{"the request was blocked + policy", "The request was blocked by the Prohibited Use Policy.", true, "the request was blocked"},
+		{"the request has been blocked + policy", "The request has been blocked under the Prohibited Use Policy.", true, "the request has been blocked"},
+		{"request was blocked + policy", "Request was blocked: Prohibited Use Policy.", true, "request was blocked"},
 		// --- 安全过滤器 ---
-		{"blocked by safety filters", "prompt blocked by safety filters", true, "safety"},
-		{"safety: prompt was blocked", "safety: the prompt was blocked", true, "safety"},
-		{"blocked due to safety", "The prompt was blocked due to safety.", true, "safety"},
-		{"blocked by safety", "The prompt was blocked by safety settings.", true, "safety"},
+		{"blocked by safety filters", "prompt blocked by safety filters", true, "prompt blocked by safety filters"},
+		{"safety: prompt was blocked", "safety: the prompt was blocked", true, "safety: the prompt was blocked"},
+		{"blocked due to safety", "The prompt was blocked due to safety.", true, "the prompt was blocked due to safety"},
+		{"blocked by safety", "The prompt was blocked by safety settings.", true, "the prompt was blocked by safety"},
 		// --- 噪声前缀剥离后仍应命中 ---
-		{"error: prefix stripped", "Error: The prompt could not be submitted.", true, "submission"},
-		{"[ERROR] prefix stripped", "[ERROR] the prompt could not be submitted", true, "submission"},
-		{"google api error prefix stripped", "Google API error: the request was blocked by Prohibited Use Policy", true, "policy"},
+		{"error: prefix stripped", "Error: The prompt could not be submitted.", true, "the prompt could not be submitted"},
+		{"[ERROR] prefix stripped", "[ERROR] the prompt could not be submitted", true, "the prompt could not be submitted"},
+		{"google api error prefix stripped", "Google API error: the request was blocked by Prohibited Use Policy", true, "the request was blocked"},
 		// --- 不应命中：缺少共现条件 ---
 		{"policy named without blocking verb", "This document explains the Prohibited Use Policy.", false, ""},
 		{"sensitive words without policy verb", "The prompt contains sensitive words.", false, ""},
@@ -57,22 +59,127 @@ func TestIsPseudo200ErrorBuiltinRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			matched, reason := IsPseudo200Error(enabled, tt.content)
 			assert.Equal(t, tt.wantMatch, matched, "content: %q", tt.content)
-			if !tt.wantMatch {
-				assert.Empty(t, reason)
-				return
-			}
-			assert.NotEmpty(t, reason)
-			switch tt.wantWhat {
-			case "submission":
-				assert.Contains(t, reason, "submission")
-			case "sensitive":
-				assert.Contains(t, reason, "sensitive words")
-			case "policy":
-				assert.Contains(t, reason, "Prohibited Use policy")
-			case "safety":
-				assert.Contains(t, reason, "safety")
-			}
+			assert.Equal(t, tt.wantReason, reason)
 		})
+	}
+}
+
+// TestGetChannelDefaultPseudo200RulesRoundTrip 固化「默认规则文本」与内置指纹表
+// 的等价性：前端回填的文本必须能被解析回一模一样的规则表，且两者的判定结果对
+// 同一批样本完全一致。否则「留空」与「回填后保存」的渠道会出现行为差异。
+func TestGetChannelDefaultPseudo200RulesRoundTrip(t *testing.T) {
+	rendered := GetChannelDefaultPseudo200Rules()
+	require.NotEmpty(t, rendered)
+	require.Contains(t, rendered, "\n", "one rule per line")
+
+	parsed := parsePseudo200Rules(rendered)
+	require.Len(t, parsed, len(pseudo200Rules), "every built-in rule must round-trip")
+	for i, rule := range pseudo200Rules {
+		assert.Equal(t, rule.prefix, parsed[i].prefix, "rule %d prefix", i)
+		assert.Equal(t, rule.requires, parsed[i].requires, "rule %d requires", i)
+	}
+
+	// 同一批样本在「内置表」与「回填的表」下判定必须完全一致。
+	samples := []string{
+		"The prompt could not be submitted.",
+		"The prompt cannot be submitted.",
+		"The prompt contains sensitive words that violate policy.",
+		"This request violates Google's Generative AI Prohibited Use policy.",
+		"Request was blocked: Prohibited Use Policy.",
+		"prompt blocked by safety filters",
+		"the prompt was blocked by safety settings",
+		"Google's Prohibited Use Policy forbids weapons assistance.",
+		"The prompt contains sensitive words.",
+		"If the API says 'the prompt could not be submitted', catch it.",
+	}
+	withBuiltin := dto.ChannelSettings{Pseudo200Enabled: true}
+	withExplicit := dto.ChannelSettings{Pseudo200Enabled: true, Pseudo200Rules: rendered}
+	for _, sample := range samples {
+		builtinMatched, builtinReason := IsPseudo200Error(withBuiltin, sample)
+		explicitMatched, explicitReason := IsPseudo200Error(withExplicit, sample)
+		assert.Equal(t, builtinMatched, explicitMatched, "sample: %q", sample)
+		assert.Equal(t, builtinReason, explicitReason, "sample: %q", sample)
+	}
+}
+
+// TestIsPseudo200ErrorChannelRulesEditable 验证渠道规则表可被真正改写：既能新增
+// 自定义特征，也能**删除**内置特征（这是与「只能追加」的 Pseudo200CustomKeywords
+// 的关键区别），且原文为空时保持内置行为不变。
+func TestIsPseudo200ErrorChannelRulesEditable(t *testing.T) {
+	builtinBlocked := "The prompt could not be submitted."
+
+	// 空规则：沿用内置表（老渠道兼容）
+	matched, reason := IsPseudo200Error(
+		dto.ChannelSettings{Pseudo200Enabled: true},
+		builtinBlocked,
+	)
+	assert.True(t, matched, "blank rules must fall back to the built-in table")
+	assert.Equal(t, "the prompt could not be submitted", reason)
+
+	// 改写规则：删掉内置特征，换成运营商自己的特征
+	custom := dto.ChannelSettings{
+		Pseudo200Enabled: true,
+		Pseudo200Rules:   "upstream refused our request\n# this is a comment\naccount flagged | over_quota, frozen",
+	}
+	matched, _ = IsPseudo200Error(custom, builtinBlocked)
+	assert.False(t, matched, "a removed built-in signature must stop matching")
+
+	matched, reason = IsPseudo200Error(custom, "Upstream refused our request.")
+	assert.True(t, matched, "an operator-defined prefix must match")
+	assert.Equal(t, "upstream refused our request", reason)
+
+	// 带共现条件的自定义规则：任一 requires 命中即判定
+	matched, _ = IsPseudo200Error(custom, "account flagged because it is frozen")
+	assert.True(t, matched, "requires is satisfied by one of the listed values")
+
+	// requires 全部未出现时不命中
+	matched, _ = IsPseudo200Error(custom, "account flagged but nothing else applies")
+	assert.False(t, matched, "requires must be present when configured")
+
+	// 注释行与空行不产生规则
+	commentOnly := dto.ChannelSettings{
+		Pseudo200Enabled: true,
+		Pseudo200Rules:   "# only a comment\n\n",
+	}
+	matched, _ = IsPseudo200Error(commentOnly, builtinBlocked)
+	assert.False(t, matched, "comment-only rules resolve to an empty table, not the built-ins")
+}
+
+// TestIsPseudo200ErrorChannelRulesStillChannelScoped 规则表同样只作用于本渠道，
+// 且仍受总开关与 400 字符上限约束。
+func TestIsPseudo200ErrorChannelRulesStillChannelScoped(t *testing.T) {
+	rules := "upstream refused our request"
+
+	// 总开关关闭：规则表不生效
+	matched, _ := IsPseudo200Error(dto.ChannelSettings{Pseudo200Rules: rules}, "upstream refused our request")
+	assert.False(t, matched, "channel rules require the channel switch")
+
+	// 渠道之间独立
+	other := dto.ChannelSettings{Pseudo200Enabled: true}
+	matched, _ = IsPseudo200Error(other, "upstream refused our request")
+	assert.False(t, matched, "another channel must not inherit the rules")
+
+	// 超长正文放行
+	long := "upstream refused our request " + string(make([]byte, 600))
+	matched, _ = IsPseudo200Error(dto.ChannelSettings{Pseudo200Enabled: true, Pseudo200Rules: rules}, long)
+	assert.False(t, matched, "rules must not match oversized content")
+}
+
+// TestIsPseudo200ErrorBuiltinRulesUnchanged 证明内置指纹表的行为未被规则表改动破坏：
+// 删除 reason 字段、改用 prefix 作为日志标识后，判定结果必须与改造前一致。
+func TestIsPseudo200ErrorBuiltinRulesUnchanged(t *testing.T) {
+	require.Len(t, pseudo200Rules, 13, "the built-in table keeps all 13 signatures")
+
+	// 曾经误判的样本必须仍然放行（这是首部锚定 + 共现判据的核心价值）
+	notBlocked := []string{
+		"If the API says 'the prompt could not be submitted', you should catch that error.",
+		"Note that the upstream told us the prompt contains sensitive words that violate the policy.",
+		"Google's Generative AI Prohibited Use policy forbids weapons and malware assistance.",
+		"This document explains when content that violates Google's Prohibited Use Policy may be removed.",
+	}
+	for _, sample := range notBlocked {
+		matched, _ := IsPseudo200Error(enabledChannel(), sample)
+		assert.False(t, matched, "sample: %q", sample)
 	}
 }
 

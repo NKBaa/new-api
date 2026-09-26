@@ -93,6 +93,7 @@ export interface ChannelSettings {
   http2_connection_shards?: number
   pseudo_200_enabled?: boolean
   pseudo_200_custom_keywords?: string
+  pseudo_200_rules?: string
 }
 
 export interface ChannelOtherSettings {

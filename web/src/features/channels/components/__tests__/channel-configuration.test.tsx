@@ -98,6 +98,14 @@ function deferredResponse<T>() {
   return { promise, resolve }
 }
 
+// Mirrors the shape served by GET /api/channel/default_pseudo_200_rules.
+const DEFAULT_PSEUDO_200_RULES = [
+  'the prompt could not be submitted',
+  'the prompt cannot be submitted',
+  'the prompt contains sensitive words | violat, blocked, prohibited',
+  'prompt blocked by safety filters',
+].join('\n')
+
 function ConfigurationHarness(props: {
   initialOpen?: boolean
   currentRow?: Channel
@@ -177,6 +185,17 @@ beforeEach(() => {
             24: 'https://gemini.server.example',
             43: 'https://deepseek.server.example',
             45: 'https://volcengine.server.example',
+          },
+        },
+      }
+    }
+    if (url === '/api/channel/default_pseudo_200_rules') {
+      return {
+        data: {
+          success: true,
+          data: {
+            rules: DEFAULT_PSEUDO_200_RULES,
+            max_chars: 400,
           },
         },
       }
@@ -1635,13 +1654,80 @@ test('a channel enables pseudo-200 detection in Request & Response and saves its
   const signatures = await screen.findByLabelText('Custom blocking signatures')
   fireEvent.change(signatures, { target: { value: 'quota_policy_blocked' } })
 
+  // 首次开启时，可编辑的规则列表自动回填内置特征。
+  const rules = await screen.findByLabelText('Blocking signatures')
+  expect(rules).toHaveValue(DEFAULT_PSEUDO_200_RULES)
+
   await user.click(screen.getByRole('button', { name: 'Update Channel' }))
   await waitFor(() => expect(put).toHaveBeenCalled())
   const payload = put.mock.calls[0]?.[1] as { setting: string }
   expect(JSON.parse(payload.setting)).toMatchObject({
     pseudo_200_enabled: true,
     pseudo_200_custom_keywords: 'quota_policy_blocked',
+    pseudo_200_rules: DEFAULT_PSEUDO_200_RULES,
   })
+})
+
+test('an edited rule list is saved verbatim and can be restored to the built-in defaults', async () => {
+  const put = vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  await user.click(
+    screen.getByRole('switch', { name: 'Pseudo-200 detection' })
+  )
+
+  // Operator replaces the whole list, including removing built-in signatures.
+  const rules = await screen.findByLabelText('Blocking signatures')
+  fireEvent.change(rules, { target: { value: 'upstream refused our request' } })
+  expect(rules).toHaveValue('upstream refused our request')
+
+  // Restoring must bring the built-in list back.
+  await user.click(screen.getByRole('button', { name: 'Restore defaults' }))
+  expect(rules).toHaveValue(DEFAULT_PSEUDO_200_RULES)
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { setting: string }
+  expect(JSON.parse(payload.setting).pseudo_200_rules).toBe(
+    DEFAULT_PSEUDO_200_RULES
+  )
+})
+
+test('an existing channel keeps its saved rule list instead of being overwritten by the defaults', async () => {
+  editingChannel = channelSchema.parse({
+    id: 42,
+    name: 'Existing channel',
+    type: 1,
+    key: '',
+    status: 1,
+    created_time: 1,
+    test_time: 0,
+    response_time: 0,
+    balance_updated_time: 0,
+    models: 'gpt-4o',
+    group: 'default',
+    base_url: 'https://api.example.com',
+    setting: JSON.stringify({
+      pseudo_200_enabled: true,
+      pseudo_200_rules: 'operator owned signature',
+    }),
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+
+  const toggle = screen.getByRole('switch', { name: 'Pseudo-200 detection' })
+  expect(toggle).toBeChecked()
+  const rules = await screen.findByLabelText('Blocking signatures')
+  expect(rules).toHaveValue('operator owned signature')
+
+  // Toggling off and on again must not replace the operator's own list.
+  await user.click(toggle)
+  await user.click(toggle)
+  expect(rules).toHaveValue('operator owned signature')
 })
 
 test('a user without sensitive-write permission cannot toggle the pseudo-200 setting', async () => {

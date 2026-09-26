@@ -24,6 +24,17 @@ func TestChannelDefaultBaseURLsRequireReadPermission(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
+func TestChannelDefaultPseudo200RulesRequireReadPermission(t *testing.T) {
+	assertChannelRoutePermission(t, http.MethodGet, "/default_pseudo_200_rules", authz.ChannelRead, controller.GetChannelDefaultPseudo200Rules)
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	registerChannelRoutes(engine.Group("/api"))
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/channel/default_pseudo_200_rules", nil))
+	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
 func TestChannelStatusRoutesUseExpectedPermissions(t *testing.T) {
 	assertChannelRoutePermission(t, http.MethodGet, "/:id/vllm/status", authz.ChannelRead, controller.GetVLLMChannelStatus)
 	assertChannelRoutePermission(t, http.MethodGet, "/:id/sglang/status", authz.ChannelRead, controller.GetSGLangChannelStatus)

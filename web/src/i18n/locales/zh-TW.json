@@ -6958,6 +6958,9 @@
     "Custom blocking signatures": "自訂攔截特徵",
     "One signature per line, or separate them with commas. Leave blank to use only the built-in signatures.": "每行一個或以逗號分隔自訂攔截特徵，留空則僅使用系統內建特徵。",
     "Detect upstream responses that return HTTP 200 while the body is actually a risk-control block, then retry another channel without charging quota": "偵測上游回傳 HTTP 200 但內容實為風控攔截的虛假回應，命中後自動更換通路重試，且不扣除額度",
-    "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "僅對本通路生效，在內建特徵之外追加。僅當回應內容不超過 400 字元且命中特徵時，才判定為偽 200 異常。"
+    "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "僅對本通路生效，在內建特徵之外追加。僅當回應內容不超過 400 字元且命中特徵時，才判定為偽 200 異常。",
+    "Blocking signatures": "攔截特徵規則",
+    "Each line is a signature, optionally followed by | and comma-separated words that must also appear.": "每行一條規則：攔截特徵，可用 | 追加必須同時出現的詞（逗號分隔）。",
+    "A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.": "僅當回應以某條特徵開頭且正文不超過 {{chars}} 字元時，才判定為偽 200 異常。清空列表則回退到內建特徵。"
   }
 }

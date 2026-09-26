@@ -50,6 +50,36 @@ func TestGetChannelDefaultBaseURLsUsesBuiltInDefaults(t *testing.T) {
 	assert.NotContains(t, response.Data, constant.ChannelTypeTaskPlugin)
 }
 
+func TestGetChannelDefaultPseudo200RulesReturnsEditableDefaults(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/channel/default_pseudo_200_rules", nil)
+	GetChannelDefaultPseudo200Rules(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Rules    string `json:"rules"`
+			MaxChars int    `json:"max_chars"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	assert.Equal(t, service.MaxPseudo200Length(), response.Data.MaxChars)
+
+	// The payload must be directly usable by the channel form: one rule per line,
+	// and saving it back must reproduce the built-in behaviour exactly.
+	rules := response.Data.Rules
+	require.NotEmpty(t, rules)
+	require.Contains(t, rules, "the prompt could not be submitted")
+
+	blocked := "The prompt could not be submitted."
+	withDefault := dto.ChannelSettings{Pseudo200Enabled: true, Pseudo200Rules: rules}
+	matched, _ := service.IsPseudo200Error(withDefault, blocked)
+	assert.True(t, matched, "the returned text must keep the built-in detection working")
+}
+
 func TestValidateChannelProxy(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -39,6 +39,14 @@ type ChannelSettings struct {
 	// the built-in ones. Accepts newline- or comma-separated values and is
 	// ignored unless Pseudo200Enabled is set.
 	Pseudo200CustomKeywords string `json:"pseudo_200_custom_keywords,omitempty"`
+	// Pseudo200Rules replaces the built-in signature table for this channel with
+	// an operator-editable list: one rule per line, written as "<prefix>" or
+	// "<prefix> | <requires, comma separated>". A response matches when it starts
+	// with the prefix and, when requires is present, also contains one of those
+	// values. Blank lines and lines starting with '#' are ignored. When empty the
+	// built-in table is used, so channels enabled before this field existed keep
+	// detecting. Ignored unless Pseudo200Enabled is set.
+	Pseudo200Rules string `json:"pseudo_200_rules,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,

@@ -131,6 +131,7 @@ import {
   getAllModels,
   getChannel,
   getChannelDefaultBaseURLs,
+  getChannelDefaultPseudo200Rules,
   getGroups,
   getPrefillGroups,
   getTaskPluginOptions,
@@ -301,6 +302,7 @@ const SENSITIVE_FORM_FIELDS = [
   'http2_connection_shards',
   'pseudo_200_enabled',
   'pseudo_200_custom_keywords',
+  'pseudo_200_rules',
   'pass_through_body_enabled',
   'responses_websocket_enabled',
   'system_prompt',
@@ -521,6 +523,14 @@ export function ChannelMutateDrawer({
     queryKey: channelsQueryKeys.defaultBaseURLs(),
     // Optional hints must not trigger the global error-page redirect.
     queryFn: () => getChannelDefaultBaseURLs().catch(() => null),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Built-in pseudo-200 signatures, used to prefill this channel's rule list.
+  const { data: defaultPseudo200Rules } = useQuery({
+    queryKey: channelsQueryKeys.defaultPseudo200Rules(),
+    queryFn: () => getChannelDefaultPseudo200Rules().catch(() => null),
     enabled: open,
     staleTime: 5 * 60 * 1000,
   })
@@ -1943,12 +1953,72 @@ export function ChannelMutateDrawer({
               <Switch
                 disabled={sensitiveLocked}
                 checked={field.value}
-                onCheckedChange={field.onChange}
+                onCheckedChange={(checked) => {
+                  field.onChange(checked)
+                  // Prefill the editable list with the built-in signatures the
+                  // first time detection is enabled, so the rules are visible
+                  // and adjustable instead of hidden behind a blank field.
+                  if (
+                    checked &&
+                    !form.getValues('pseudo_200_rules')?.trim() &&
+                    defaultPseudo200Rules?.rules
+                  ) {
+                    form.setValue(
+                      'pseudo_200_rules',
+                      defaultPseudo200Rules.rules
+                    )
+                  }
+                }}
               />
             </FormControl>
           </FormItem>
         )}
       />
+      {form.watch('pseudo_200_enabled') && (
+        <FormField
+          control={form.control}
+          name='pseudo_200_rules'
+          render={({ field }) => (
+            <FormItem className='px-4 py-3'>
+              <div className='flex items-center justify-between gap-2'>
+                <FormLabel>{t('Blocking signatures')}</FormLabel>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  disabled={sensitiveLocked || !defaultPseudo200Rules?.rules}
+                  onClick={() =>
+                    form.setValue(
+                      'pseudo_200_rules',
+                      defaultPseudo200Rules?.rules ?? '',
+                      { shouldDirty: true }
+                    )
+                  }
+                >
+                  {t('Restore defaults')}
+                </Button>
+              </div>
+              <FormControl>
+                <Textarea
+                  rows={10}
+                  className='font-mono text-xs'
+                  disabled={sensitiveLocked}
+                  placeholder={t(
+                    'Each line is a signature, optionally followed by | and comma-separated words that must also appear.'
+                  )}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.',
+                  { chars: defaultPseudo200Rules?.max_chars ?? 400 }
+                )}
+              </FormDescription>
+            </FormItem>
+          )}
+        />
+      )}
       {form.watch('pseudo_200_enabled') && (
         <FormField
           control={form.control}
@@ -1958,7 +2028,7 @@ export function ChannelMutateDrawer({
               <FormLabel>{t('Custom blocking signatures')}</FormLabel>
               <FormControl>
                 <Textarea
-                  rows={5}
+                  rows={3}
                   disabled={sensitiveLocked}
                   placeholder={t(
                     'One signature per line, or separate them with commas. Leave blank to use only the built-in signatures.'

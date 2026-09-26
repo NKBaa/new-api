@@ -36,3 +36,11 @@ test('custom signatures alone do not mark the block configured while the switch 
   })
   expect(onlyKeywords.blocks.requestProcessing).toBe('idle')
 })
+
+test('an edited rule list alone does not mark the block configured while the switch is off', () => {
+  const onlyRules = state({
+    pseudo_200_enabled: false,
+    pseudo_200_rules: 'some signature',
+  })
+  expect(onlyRules.blocks.requestProcessing).toBe('idle')
+})

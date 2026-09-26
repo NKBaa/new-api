@@ -271,6 +271,7 @@ export const channelFormSchema = z
     http2_connection_shards: z.number().int().optional(),
     pseudo_200_enabled: z.boolean().optional(),
     pseudo_200_custom_keywords: z.string().optional(),
+    pseudo_200_rules: z.string().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     responses_websocket_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
@@ -464,6 +465,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   http2_connection_shards: 1,
   pseudo_200_enabled: false,
   pseudo_200_custom_keywords: '',
+  pseudo_200_rules: '',
   pass_through_body_enabled: false,
   responses_websocket_enabled: false,
   system_prompt: '',
@@ -510,6 +512,7 @@ export function transformChannelToFormDefaults(
     http2_connection_shards: 1,
     pseudo_200_enabled: false,
     pseudo_200_custom_keywords: '',
+    pseudo_200_rules: '',
     pass_through_body_enabled: false,
     responses_websocket_enabled: false,
     system_prompt: '',
@@ -533,6 +536,7 @@ export function transformChannelToFormDefaults(
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
         pseudo_200_enabled: parsed.pseudo_200_enabled === true,
         pseudo_200_custom_keywords: parsed.pseudo_200_custom_keywords || '',
+        pseudo_200_rules: parsed.pseudo_200_rules || '',
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         responses_websocket_enabled:
           parsed.responses_websocket_enabled === true,
@@ -674,6 +678,7 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     system_prompt_override: formData.system_prompt_override || false,
     pseudo_200_enabled: formData.pseudo_200_enabled === true,
     pseudo_200_custom_keywords: formData.pseudo_200_custom_keywords?.trim() || '',
+    pseudo_200_rules: formData.pseudo_200_rules?.trim() || '',
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

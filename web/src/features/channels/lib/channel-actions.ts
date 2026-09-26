@@ -50,6 +50,8 @@ export const channelsQueryKeys = {
   all: ['channels'] as const,
   defaultBaseURLs: () =>
     [...channelsQueryKeys.all, 'default_base_urls'] as const,
+  defaultPseudo200Rules: () =>
+    [...channelsQueryKeys.all, 'default_pseudo_200_rules'] as const,
   lists: () => [...channelsQueryKeys.all, 'list'] as const,
   list: (params: Record<string, unknown>) =>
     [...channelsQueryKeys.lists(), params] as const,

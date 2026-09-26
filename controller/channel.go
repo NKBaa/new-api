@@ -189,6 +189,15 @@ func GetChannelDefaultBaseURLs(c *gin.Context) {
 	common.ApiSuccess(c, baseURLs)
 }
 
+// GetChannelDefaultPseudo200Rules 下发内置伪 200 指纹表的可编辑文本，供渠道表单在
+// 首次开启检测时回填。回填后的文本与内置表等价（同一套解析与匹配逻辑）。
+func GetChannelDefaultPseudo200Rules(c *gin.Context) {
+	common.ApiSuccess(c, gin.H{
+		"rules":     service.GetChannelDefaultPseudo200Rules(),
+		"max_chars": service.MaxPseudo200Length(),
+	})
+}
+
 func GetAllChannels(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	channelData := make([]*model.Channel, 0)

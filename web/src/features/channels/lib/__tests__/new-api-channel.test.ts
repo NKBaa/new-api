@@ -275,12 +275,14 @@ describe('New API channel task plugin extensions', () => {
       setting: JSON.stringify({
         pseudo_200_enabled: true,
         pseudo_200_custom_keywords: 'quota_policy_blocked',
+        pseudo_200_rules: 'the prompt could not be submitted',
       }),
     })
 
     const defaults = transformChannelToFormDefaults(channel)
     expect(defaults.pseudo_200_enabled).toBe(true)
     expect(defaults.pseudo_200_custom_keywords).toBe('quota_policy_blocked')
+    expect(defaults.pseudo_200_rules).toBe('the prompt could not be submitted')
 
     const payload = transformFormDataToCreatePayload(
       channelFormSchema.parse({
@@ -288,11 +290,13 @@ describe('New API channel task plugin extensions', () => {
         type: 1,
         pseudo_200_enabled: true,
         pseudo_200_custom_keywords: 'quota_policy_blocked',
+        pseudo_200_rules: 'the prompt could not be submitted',
       })
     )
     expect(JSON.parse(payload.channel.setting ?? '{}')).toMatchObject({
       pseudo_200_enabled: true,
       pseudo_200_custom_keywords: 'quota_policy_blocked',
+      pseudo_200_rules: 'the prompt could not be submitted',
     })
 
     // 另一个渠道保持关闭：每个渠道各自独立，互不影响。
