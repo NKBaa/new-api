@@ -133,10 +133,10 @@ func sseChunks(chunks ...string) *bytes.Reader {
 
 func TestCollapseChatCompletionsStreamAssemblesContent(t *testing.T) {
 	body := sseChunks(
-		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":123,"model":"zen-default","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}`,
-		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":123,"model":"zen-default","choices":[{"index":0,"delta":{"content":", world"},"finish_reason":null}]}`,
-		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":123,"model":"zen-default","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
-		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":123,"model":"zen-default","choices":[],"usage":{"prompt_tokens":11,"completion_tokens":3,"total_tokens":14}}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":123,"model":"mimo-v2.6-flash-free","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":123,"model":"mimo-v2.6-flash-free","choices":[{"index":0,"delta":{"content":", world"},"finish_reason":null}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":123,"model":"mimo-v2.6-flash-free","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		`{"id":"chatcmpl-1","object":"chat.completion.chunk","created":123,"model":"mimo-v2.6-flash-free","choices":[],"usage":{"prompt_tokens":11,"completion_tokens":3,"total_tokens":14}}`,
 	)
 
 	out, err := collapseChatCompletionsStream(body)
@@ -146,7 +146,7 @@ func TestCollapseChatCompletionsStreamAssemblesContent(t *testing.T) {
 	require.NoError(t, common.Unmarshal(out, &resp))
 	assert.Equal(t, "chat.completion", resp.Object)
 	assert.Equal(t, "chatcmpl-1", resp.Id)
-	assert.Equal(t, "zen-default", resp.Model)
+	assert.Equal(t, "mimo-v2.6-flash-free", resp.Model)
 	require.Len(t, resp.Choices, 1)
 	assert.Equal(t, "assistant", resp.Choices[0].Message.Role)
 	assert.Equal(t, "Hello, world", resp.Choices[0].Message.StringContent())
