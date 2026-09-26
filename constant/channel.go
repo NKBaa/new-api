@@ -143,6 +143,10 @@ func GetChannelBaseURL(channelType int) string {
 	return ChannelBaseURLs[channelType]
 }
 
+// OpenCodeDefaultTestModel 是 OpenCode 渠道的兜底测试模型。上游只接受它自己的
+// 模型 id，通用的 gpt-4o-mini 会被拒为 unknown model。
+const OpenCodeDefaultTestModel = "mimo-v2.6-flash-free"
+
 var ChannelTypeNames = map[int]string{
 	ChannelTypeUnknown:        "Unknown",
 	ChannelTypeOpenAI:         "OpenAI",

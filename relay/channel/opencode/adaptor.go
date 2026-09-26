@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -55,6 +57,9 @@ const (
 	// 该阶段早于 SetupRequestHeader，因此可以把请求体里的稳定信号（会话 ID、
 	// 首条用户消息）一并纳入指纹。
 	contextKeySessionIdentity = "opencode_session_identity"
+
+	// contextKeyAgentShaped 标记请求体已按 agent 形状整形，避免 DoRequest 兜底时重复处理。
+	contextKeyAgentShaped = "opencode_agent_shaped"
 
 	// defaultProjectSignal 在客户端未提供工程信号时使用。
 	defaultProjectSignal = "newapi:default-project"
@@ -332,6 +337,9 @@ func ensureAgentTools(req *dto.GeneralOpenAIRequest) {
 // 标记，交由 DoResponse 聚合回 JSON。
 func applyAgentShape(c *gin.Context, req *dto.GeneralOpenAIRequest) {
 	ensureAgentTools(req)
+	if c != nil {
+		common.SetContextKey(c, contextKeyAgentShaped, true)
+	}
 	if lo.FromPtrOr(req.Stream, false) {
 		return
 	}
@@ -362,8 +370,6 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	// 上游形状整形只作用于本渠道的 chat 请求体。透传模式（PassThroughBodyEnabled）
-	// 不经过本函数，此时仅保留请求头伪装。
 	shaped, ok := converted.(*dto.GeneralOpenAIRequest)
 	if !ok || shaped == nil {
 		return converted, nil
@@ -371,6 +377,58 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	applyAgentShape(c, shaped)
 	deriveSessionIdentity(c, shaped)
 	return shaped, nil
+}
+
+// DoRequest 必须显式覆写。
+//
+// openai.Adaptor.DoRequest 内部调用 channel.DoApiRequest(a, ...)，其中 a 是**静态
+// 接收者类型** —— 若直接复用内嵌实现，传下去的是 *openai.Adaptor，于是
+// SetupRequestHeader 分发到 openai 的实现，本包的 SetupOpenCodeHeaders 被彻底旁路，
+// 上游只会看到 Go-http-client/1.1 且没有任何 x-opencode-* 头，必然 403。
+//
+// 同时这里承担透传模式的兜底整形：PassThroughBodyEnabled / 全局透传会绕过
+// ConvertOpenAIRequest，导致 agent 形状缺失。此时在发送前对请求体做安全修饰。
+func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	safeBody, err := shapePassthroughBody(c, info, requestBody)
+	if err != nil {
+		return nil, err
+	}
+	return channel.DoApiRequest(a, c, info, safeBody)
+}
+
+// shapePassthroughBody 处理绕过 ConvertOpenAIRequest 的透传请求体。仅在 chat
+// completions 且请求体是 JSON 对象时整形；其余模式（embedding / 图片 / 音频 /
+// realtime 等）原样返回，避免对非 chat 协议做无意义的改写。
+func shapePassthroughBody(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (io.Reader, error) {
+	if info == nil || info.RelayMode != relayconstant.RelayModeChatCompletions {
+		return requestBody, nil
+	}
+	// 已经过 ConvertOpenAIRequest 时形状已就绪，无需重复处理。
+	if c != nil && common.GetContextKeyBool(c, contextKeyAgentShaped) {
+		return requestBody, nil
+	}
+	if requestBody == nil {
+		return requestBody, nil
+	}
+
+	raw, err := io.ReadAll(requestBody)
+	if err != nil {
+		return nil, err
+	}
+	var req dto.GeneralOpenAIRequest
+	if err := common.Unmarshal(raw, &req); err != nil {
+		// 非 JSON 对象（或干脆不是 OpenAI chat 体）→ 原样透传，不破坏其它用法。
+		return bytes.NewReader(raw), nil
+	}
+
+	applyAgentShape(c, &req)
+	deriveSessionIdentity(c, &req)
+
+	shaped, err := common.Marshal(&req)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(shaped), nil
 }
 
 // deriveSessionIdentity 在请求体仍可读的阶段派生会话/工程标识。此处能取到

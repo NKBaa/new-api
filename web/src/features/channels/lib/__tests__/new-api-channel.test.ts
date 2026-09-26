@@ -362,8 +362,8 @@ describe('OpenCode channel', () => {
     expect(config.hints?.key).toBe(
       'Enter OpenCode API key (oc_sk_... or partner key)'
     )
-    expect(config.hints?.models).toContain('zen-default')
-    expect(config.hints?.models).toContain('claude-3-5-sonnet')
+    expect(config.hints?.models).toContain('mimo-v2.6-flash-free')
+    expect(config.hints?.models).toContain('deepseek-v4-flash-free')
   })
 
   test('does not require organization or region, unlike the plain OpenAI type', () => {
@@ -380,13 +380,13 @@ describe('OpenCode channel', () => {
         type: CHANNEL_TYPE_OPENCODE,
         base_url: 'https://opencode.ai/zen',
         key: 'oc_sk_test',
-        models: 'zen-default',
+        models: 'mimo-v2.6-flash-free',
       })
     )
 
     expect(payload.channel.type).toBe(CHANNEL_TYPE_OPENCODE)
     expect(payload.channel.base_url).toBe('https://opencode.ai/zen')
-    expect(payload.channel.models).toBe('zen-default')
+    expect(payload.channel.models).toBe('mimo-v2.6-flash-free')
 
     const defaults = transformChannelToFormDefaults(
       channelSchema.parse({
@@ -399,7 +399,7 @@ describe('OpenCode channel', () => {
         test_time: 0,
         response_time: 0,
         balance_updated_time: 0,
-        models: 'zen-default',
+        models: 'mimo-v2.6-flash-free',
         group: 'default',
         base_url: 'https://opencode.ai/zen',
       })

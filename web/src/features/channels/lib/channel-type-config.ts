@@ -57,7 +57,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     hints: {
       baseUrl: 'https://opencode.ai/zen',
       key: 'Enter OpenCode API key (oc_sk_... or partner key)',
-      models: 'zen-default,zen-advanced,zen-fast,claude-3-5-sonnet,deepseek-chat',
+      models: 'mimo-v2.6-flash-free,deepseek-v4-flash-free,mimo-v2.5-free,nemotron-3.5-lightning-free',
     },
   },
   [CHANNEL_TYPE_SGLANG]: {

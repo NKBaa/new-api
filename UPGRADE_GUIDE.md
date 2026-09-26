@@ -227,6 +227,16 @@ AI 修改本仓库时必须同时满足：
 - **header_override 优先级最高（不要在适配器里自己处理）**：两条链路都在本函数**之后**套用 override —— 转发链路是 `channel.DoApiRequest` 在 `SetupRequestHeader` 之后调用 `applyHeaderOverrideToRequest`（见 `relay/channel/api_request.go` 注释「确保用户设置优先级最高」）；模型拉取链路是 `applyFetchModelsHeaderOverrides` 在 `buildFetchModelsHeaders` 里于本函数之后调用。因此**只需把 `SetupOpenCodeHeaders` 放在 override 之前**即可，无需特殊分支。
 - **模型拉取也要伪装**：`controller/channel.go` 的 `buildFetchModelsHeaders` 增加 `channel.Type == constant.ChannelTypeOpenCode` 分支并调用 `opencode.SetupOpenCodeHeaders(&headers, nil)`（`c == nil` 走到默认指纹分支）。否则后台「获取模型列表」会被上游拦截。
 - **前端**：`constants.ts` 新增 `CHANNEL_TYPE_OPENCODE = 64`、`CHANNEL_TYPES[64]='OpenCode'`、`CHANNEL_PROVIDER_PRESENTATION[64]`、`CHANNEL_TYPE_DISPLAY_ORDER` 加入 64（紧随 61）、三个 Set（`MODEL_FETCHABLE_TYPES` / `FIELD_PASSTHROUGH_TYPES` / `OPENAI_FIELD_PASSTHROUGH_TYPES`）加入 64、`TYPE_TO_KEY_PROMPT[64]`；`channel-type-config.ts` 注册配置（**icon `'OpenCode'`**，`@lobehub/icons` 已内置该图标，无需新增资源）；`channel-utils.ts` 的 `TYPE_TO_ICON[64]='OpenCode'`。
+- **⚠️ 必须覆写 `DoRequest`（最隐蔽的坑）**：`openai.Adaptor.DoRequest` 内部调用
+  `channel.DoApiRequest(a, ...)`，其中 `a` 是**静态接收者类型**。若本包不覆写 `DoRequest`，
+  传下去的是 `*openai.Adaptor`，于是 `SetupRequestHeader` 分发到 openai 的实现，
+  **本包的指纹注入被彻底旁路** —— 上游只会看到 `Go-http-client/1.1` 且没有任何
+  `x-opencode-*` 头，必然 403。
+  - 这类缺陷**无法**被「直接调用 `SetupOpenCodeHeaders`」的单元测试发现，必须用
+    **真实 HTTP 服务器抓包**验证（见 `dispatch_test.go`）。
+  - 同理，`DoRequest` 内还会对**透传模式**（`PassThroughBodyEnabled` / 全局透传）做兜底整形：
+    该模式绕过 `ConvertOpenAIRequest`，否则请求体缺少 agent 形状会 100% 触发 403。
+
 - **⚠️ 易错点**：
   1. `CHANNEL_PROVIDER_PRESENTATION` 有 `satisfies Record<Exclude<keyof typeof CHANNEL_TYPES, 0 | 61>, …>` 约束 —— **给 `CHANNEL_TYPES` 加了键就必须同步加 presentation**，否则 typecheck 直接失败；
   2. `opencode.Adaptor` 用**值内嵌** `openai.Adaptor`（不是指针），embedding 才能提升全部方法满足 `channel.Adaptor` 接口；
@@ -380,7 +390,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | `relaykit` 独立构建（`GOWORK=off`） | exit 0 |
 | Go 文件 `gofmt` | 全部改动 Go 文件 clean |
 | 伪 200 测试（service 12 + relay 4） | 16/16 PASS |
-| OpenCode 渠道测试 | 44/44 PASS（`go test -v ./relay/channel/opencode/...`） |
+| OpenCode 渠道测试 | 51/51 PASS（`go test -v ./relay/channel/opencode/...`） |
 | 前端 `typecheck` | exit 0 |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端全量 `vitest` | **170 文件 / 2136 用例**，连续 2 次全过 |

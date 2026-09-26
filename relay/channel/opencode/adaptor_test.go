@@ -366,7 +366,13 @@ func TestAdaptorGetChannelNameAndModels(t *testing.T) {
 	adaptor := &Adaptor{}
 	assert.Equal(t, "opencode", adaptor.GetChannelName())
 	assert.NotEmpty(t, adaptor.GetModelList())
-	assert.Contains(t, adaptor.GetModelList(), "zen-default")
+	// 预置模型必须是上游真实存在的免费层模型；占位名（如 zen-default）会让
+	// 渠道测试直接拿到 unknown model 错误。
+	assert.Contains(t, adaptor.GetModelList(), "mimo-v2.6-flash-free")
+	for _, model := range adaptor.GetModelList() {
+		assert.True(t, strings.HasSuffix(model, "-free"),
+			"only free-tier models are reachable without a paid Zen key: %s", model)
+	}
 }
 
 func TestNewClientIDIsUniqueAcrossRapidCalls(t *testing.T) {

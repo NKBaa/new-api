@@ -52,6 +52,15 @@ func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) s
 	return normalized
 }
 
+// defaultTestModelForChannel 给出与渠道类型匹配的兜底测试模型。OpenCode 上游只认
+// 它自己的模型 id，通用兜底值（gpt-4o-mini）会被拒为 401/unknown model。
+func defaultTestModelForChannel(channel *model.Channel) string {
+	if channel != nil && channel.Type == constant.ChannelTypeOpenCode {
+		return constant.OpenCodeDefaultTestModel
+	}
+	return "gpt-4o-mini"
+}
+
 func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	if c != nil {
 		if userID := c.GetInt("id"); userID > 0 {
@@ -103,7 +112,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				testModel = strings.TrimSpace(models[0])
 			}
 			if testModel == "" {
-				testModel = "gpt-4o-mini"
+				testModel = defaultTestModelForChannel(channel)
 			}
 		}
 	}
