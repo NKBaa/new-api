@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `cb668037e` |
+| 当前交付提交 | `894724c8f` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **131 文件** = 37 新增 + 94 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -34,7 +34,9 @@ d04c118c8 (官方基线)
                                                     └── 82d3d7035   (规则可编辑)
                                                             └── 49f5cb862   (文档)
                                                                     └── 0edf27455   (文档同步)
-                                                                            └── cb668037e   (= 本仓库 HEAD，分隔符容错)
+                                                                            └── cb668037e   (分隔符容错)
+                                                                                    └── 87bf361e1   (文档)
+                                                                                            └── 894724c8f   (= 本仓库 HEAD，OpenCode 渠道)
 ```
 
 **因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动。** 若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成：
