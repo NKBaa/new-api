@@ -1,28 +1,41 @@
 package opencode
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
 
-// OpenCode 上游按客户端指纹拦截请求：缺少会话标识时返回 400 MissingSessionID，
-// 非官方客户端会被 403 Forbidden 或 429 FreeUsageLimitError 拒绝，免费额度还会以
-// 403 FreeTierError("can only be used from within OpenCode") 拒绝。
+// OpenCode Zen 免费额度闸门（403 FreeTierError）同时校验**请求头指纹**与
+// **请求体形状**，两者缺一不可：
 //
-// 闸门校验的是**指纹形状**而不只是有没有这些头，因此以下三者必须同时正确：
-//   - User-Agent 的 opencode/<major>.<minor> 版本号不低于 1.17；
-//   - x-opencode-session / x-opencode-request 是官方格式的客户端 ID（并非 UUID）；
-//   - 请求体为流式且声明 bash / read 工具（见本文件末尾说明，当前**未**实现）。
+//   - 请求头：User-Agent 为版本足够新的官方 CLI、x-opencode-session /
+//     x-opencode-request 是官方格式的客户端 ID。
+//   - 请求体：`stream: true`，且声明 opencode 内置的 agent 工具
+//     （bash / edit / glob / grep / read）。上游对「非 agent 形状」的免费请求
+//     在所有通道上返回 403 FreeTierError。
+//
+// 由于上游不会告知某个模型是否免费，本渠道对**所有**请求统一整形；整形后若客户端
+// 原本要求非流式，则由本包把 SSE 聚合成单个 JSON 响应再交给 OpenAI 处理器，
+// 客户端无需感知。
+//
+// 参考实现（Go）：https://github.com/jasonxu114514/opencode2api
 const (
 	// officialUserAgent 覆盖普通客户端的 UA。
 	officialUserAgent = "opencode/1.18.31"
@@ -32,7 +45,17 @@ const (
 	officialUAMinMinor = 17
 	// clientName 标记请求来源为 CLI。
 	clientName = "cli"
+
+	// contextKeyCollapseStream 标记「上游被强制流式，但客户端要的是非流式」，
+	// 需要在 DoResponse 阶段把 SSE 聚合回 JSON。
+	contextKeyCollapseStream = "opencode_collapse_stream"
+
+	// agentToolDescription 劝阻模型真的调用这些占位工具。
+	agentToolDescription = "Unavailable in this client. Never call this tool; use the other tools instead."
 )
+
+// officialAgentTools 是上游认定的 agent 形状所要求的工具名。
+var officialAgentTools = []string{"bash", "edit", "glob", "grep", "read"}
 
 // 官方客户端 ID 的形状：<prefix>_ + 12 位十六进制时间戳字段 + 14 位随机 base62。
 // 上游按此形状校验，UUID 会被判定为非官方客户端。
@@ -77,7 +100,7 @@ func hasUsableOfficialUA(ua string) bool {
 	return minor >= officialUAMinMinor
 }
 
-// isOpenCodeClientID 校验官方客户端 ID 形状（大小写敏感的 base62 随机段）。
+// isOpenCodeClientID 校验官方客户端 ID 形状（base62 随机段大小写敏感）。
 func isOpenCodeClientID(id, prefix string) bool {
 	if len(id) != len(prefix)+1+idTimeHexLength+idRandomLength {
 		return false
@@ -100,7 +123,7 @@ func isOpenCodeClientID(id, prefix string) bool {
 }
 
 // newClientID 生成官方形状的客户端 ID。descending 用于 ses_（官方对会话 ID 取反），
-// 其余（msg_）为 ascending。
+// msg_ 为 ascending。
 func newClientID(prefix string, descending bool) string {
 	now := time.Now().UnixMilli()
 
@@ -137,11 +160,8 @@ func newClientID(prefix string, descending bool) string {
 // **之后**统一套用（见 relay/channel/api_request.go），模型拉取链路由
 // applyFetchModelsHeaderOverrides 在调用方之后套用，两处都天然高于此处设置的值。
 //
-// c 允许为 nil（后台拉取模型时无请求上下文），此时使用默认指纹。
-//
-// ⚠️ 已知不完整：上游免费额度闸门还会要求请求体 `stream: true` 且声明 opencode 的
-// 内置 `bash` / `read` 工具。本函数只处理请求头，因此在仅靠请求头不足以放行的
-// 上游策略下仍可能收到 403 FreeTierError。
+// c 允许为 nil（后台拉取模型时无请求上下文），此时使用默认指纹。请求体整形见
+// applyAgentShape（由 ConvertOpenAIRequest 调用）。
 func SetupOpenCodeHeaders(header *http.Header, c *gin.Context) {
 	if header == nil {
 		return
@@ -183,7 +203,49 @@ func SetupOpenCodeHeaders(header *http.Header, c *gin.Context) {
 	header.Set("x-opencode-request", newClientID(requestIDPrefix, false))
 }
 
-// Adaptor 复用 OpenAI 协议实现，仅覆写请求头组装以注入官方客户端指纹。
+// ensureAgentTools 补齐上游要求的 agent 工具，已声明的同名工具保持不变。
+func ensureAgentTools(req *dto.GeneralOpenAIRequest) {
+	present := make(map[string]bool, len(req.Tools))
+	for _, tool := range req.Tools {
+		if name := strings.TrimSpace(tool.Function.Name); name != "" {
+			present[name] = true
+		}
+	}
+	for _, name := range officialAgentTools {
+		if present[name] {
+			continue
+		}
+		req.Tools = append(req.Tools, dto.ToolCallRequest{
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Name:        name,
+				Description: agentToolDescription,
+				Parameters: map[string]any{
+					"type":       "object",
+					"properties": map[string]any{},
+				},
+			},
+		})
+	}
+}
+
+// applyAgentShape 把请求整形为上游要求的 agent 形状。客户端原本要求非流式时记录
+// 标记，交由 DoResponse 聚合回 JSON。
+func applyAgentShape(c *gin.Context, req *dto.GeneralOpenAIRequest) {
+	ensureAgentTools(req)
+	if lo.FromPtrOr(req.Stream, false) {
+		return
+	}
+	req.Stream = lo.ToPtr(true)
+	if req.StreamOptions == nil {
+		req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+	}
+	if c != nil {
+		common.SetContextKey(c, contextKeyCollapseStream, true)
+	}
+}
+
+// Adaptor 复用 OpenAI 协议实现，仅覆写指纹注入与请求体整形。
 type Adaptor struct {
 	openai.Adaptor
 }
@@ -196,10 +258,172 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
+func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	converted, err := a.Adaptor.ConvertOpenAIRequest(c, info, request)
+	if err != nil {
+		return nil, err
+	} // 上游形状整形只作用于本渠道的 chat 请求体。透传模式（PassThroughBodyEnabled）
+	// 不经过本函数，此时仅保留请求头伪装。
+	shaped, ok := converted.(*dto.GeneralOpenAIRequest)
+	if !ok || shaped == nil {
+		return converted, nil
+	}
+	applyAgentShape(c, shaped)
+	return shaped, nil
+}
+
+// DoResponse 在「上游被强制流式而客户端要求非流式」时，先把 SSE 聚合成单个
+// JSON 文档再交给 OpenAI 处理器；其余情况保持原样透传。
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if c == nil || resp == nil || !common.GetContextKeyBool(c, contextKeyCollapseStream) {
+		return a.Adaptor.DoResponse(c, resp, info)
+	}
+	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
+		// 上游没有真的流式（部分网关会忽略 stream），无需聚合。
+		return a.Adaptor.DoResponse(c, resp, info)
+	}
+
+	aggregated, err := collapseChatCompletionsStream(resp.Body)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+	_ = resp.Body.Close()
+	resp.Body = io.NopCloser(bytes.NewReader(aggregated))
+	resp.ContentLength = int64(len(aggregated))
+	resp.Header.Del("Content-Encoding")
+	resp.Header.Del("Content-Length")
+	resp.Header.Set("Content-Type", "application/json")
+	// 让下游按非流式处理（补齐 usage、伪 200 检测、协议转换等复用官方实现）。
+	info.IsStream = false
+
+	return a.Adaptor.DoResponse(c, resp, info)
+}
+
 func (a *Adaptor) GetModelList() []string {
 	return ModelList
 }
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+// collapseChatCompletionsStream 把 Chat Completions 的 SSE 事件流聚合为等价的
+// 非流式响应体。usage 以最后一个非空上报为准（由 stream_options.include_usage
+// 保证出现在末尾）。
+func collapseChatCompletionsStream(body io.Reader) ([]byte, error) {
+	scanner := helper.NewStreamScanner(body)
+
+	var (
+		id, model          string
+		created            any
+		content, reasoning strings.Builder
+		finishReason       string
+		usage              *dto.Usage
+		toolCalls          []dto.ToolCallResponse
+	)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		payload, ok := strings.CutPrefix(line, "data:")
+		if !ok {
+			continue
+		}
+		payload = strings.TrimSpace(payload)
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+
+		var chunk dto.ChatCompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(payload, &chunk); err != nil {
+			// 忽略注释/心跳等非 JSON 帧。
+			continue
+		}
+		if chunk.Id != "" {
+			id = chunk.Id
+		}
+		if chunk.Model != "" {
+			model = chunk.Model
+		}
+		if chunk.Created != 0 {
+			created = chunk.Created
+		}
+		if chunk.Usage != nil && (chunk.Usage.PromptTokens > 0 || chunk.Usage.CompletionTokens > 0 || chunk.Usage.TotalTokens > 0) {
+			usage = chunk.Usage
+		}
+		for _, choice := range chunk.Choices {
+			if choice.Delta.Content != nil {
+				content.WriteString(*choice.Delta.Content)
+			}
+			reasoning.WriteString(choice.Delta.GetReasoningContent())
+			for _, call := range choice.Delta.ToolCalls {
+				mergeStreamToolCall(&toolCalls, call)
+			}
+			if choice.FinishReason != nil && *choice.FinishReason != "" {
+				finishReason = *choice.FinishReason
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	message := dto.Message{Role: "assistant", Content: content.String()}
+	if reasoning.Len() > 0 {
+		reasoningText := reasoning.String()
+		message.ReasoningContent = &reasoningText
+	}
+	if len(toolCalls) > 0 {
+		merged := make([]dto.ToolCallResponse, len(toolCalls))
+		for i, call := range toolCalls {
+			// index 只存在于流式分片，非流式响应不带该字段。
+			call.Index = nil
+			if call.Type == nil {
+				call.Type = "function"
+			}
+			merged[i] = call
+		}
+		raw, err := common.Marshal(merged)
+		if err != nil {
+			return nil, err
+		}
+		message.ToolCalls = raw
+	}
+
+	result := dto.OpenAITextResponse{
+		Id:      id,
+		Model:   model,
+		Object:  "chat.completion",
+		Created: created,
+		Choices: []dto.OpenAITextResponseChoice{{
+			Index:        0,
+			Message:      message,
+			FinishReason: finishReason,
+		}},
+	}
+	if usage != nil {
+		result.Usage = *usage
+	}
+	return common.Marshal(result)
+}
+
+// mergeStreamToolCall 按 index 合并流式工具调用分片（参数按增量拼接）。
+func mergeStreamToolCall(calls *[]dto.ToolCallResponse, delta dto.ToolCallResponse) {
+	index := len(*calls)
+	if delta.Index != nil {
+		index = *delta.Index
+	}
+	for len(*calls) <= index {
+		*calls = append(*calls, dto.ToolCallResponse{})
+	}
+	target := &(*calls)[index]
+	if delta.ID != "" {
+		target.ID = delta.ID
+	}
+	if delta.Type != nil {
+		target.Type = delta.Type
+	}
+	if delta.Function.Name != "" {
+		target.Function.Name = delta.Function.Name
+	}
+	target.Function.Arguments += delta.Function.Arguments
 }

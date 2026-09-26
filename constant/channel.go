@@ -133,7 +133,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //61
 	"",                                          //62
 	"",                                          //63
-	"https://api.opencode.ai",                   //64 OpenCode
+	"https://opencode.ai/zen",                   //64 OpenCode
 }
 
 func GetChannelBaseURL(channelType int) string {

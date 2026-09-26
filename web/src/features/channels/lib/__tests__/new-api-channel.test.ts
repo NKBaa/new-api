@@ -348,7 +348,7 @@ describe('OpenCode channel', () => {
     expect(MODEL_FETCHABLE_TYPES.has(CHANNEL_TYPE_OPENCODE)).toBe(true)
     expect(FIELD_PASSTHROUGH_TYPES.has(CHANNEL_TYPE_OPENCODE)).toBe(true)
     expect(OPENAI_FIELD_PASSTHROUGH_TYPES.has(CHANNEL_TYPE_OPENCODE)).toBe(true)
-    expect(getChannelTypeIcon(CHANNEL_TYPE_OPENCODE)).toBe('OpenAI')
+    expect(getChannelTypeIcon(CHANNEL_TYPE_OPENCODE)).toBe('OpenCode')
     expect(getKeyPromptForType(CHANNEL_TYPE_OPENCODE)).toBe(
       'Enter OpenCode API key (oc_sk_... or partner key)'
     )
@@ -357,8 +357,8 @@ describe('OpenCode channel', () => {
   test('exposes default Base URL, key prompt, and preset models', () => {
     const config = getChannelTypeConfig(CHANNEL_TYPE_OPENCODE)
 
-    expect(config.icon).toBe('OpenAI')
-    expect(config.hints?.baseUrl).toBe('https://api.opencode.ai')
+    expect(config.icon).toBe('OpenCode')
+    expect(config.hints?.baseUrl).toBe('https://opencode.ai/zen')
     expect(config.hints?.key).toBe(
       'Enter OpenCode API key (oc_sk_... or partner key)'
     )
@@ -378,14 +378,14 @@ describe('OpenCode channel', () => {
         ...CHANNEL_FORM_DEFAULT_VALUES,
         name: 'OpenCode upstream',
         type: CHANNEL_TYPE_OPENCODE,
-        base_url: 'https://api.opencode.ai',
+        base_url: 'https://opencode.ai/zen',
         key: 'oc_sk_test',
         models: 'zen-default',
       })
     )
 
     expect(payload.channel.type).toBe(CHANNEL_TYPE_OPENCODE)
-    expect(payload.channel.base_url).toBe('https://api.opencode.ai')
+    expect(payload.channel.base_url).toBe('https://opencode.ai/zen')
     expect(payload.channel.models).toBe('zen-default')
 
     const defaults = transformChannelToFormDefaults(
@@ -401,10 +401,10 @@ describe('OpenCode channel', () => {
         balance_updated_time: 0,
         models: 'zen-default',
         group: 'default',
-        base_url: 'https://api.opencode.ai',
+        base_url: 'https://opencode.ai/zen',
       })
     )
     expect(defaults.type).toBe(CHANNEL_TYPE_OPENCODE)
-    expect(defaults.base_url).toBe('https://api.opencode.ai')
+    expect(defaults.base_url).toBe('https://opencode.ai/zen')
   })
 })

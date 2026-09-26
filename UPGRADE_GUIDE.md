@@ -201,7 +201,7 @@ AI 修改本仓库时必须同时满足：
 ---
 
 ### B12 · OpenCode 渠道（官方客户端指纹伪装）
-- **背景**：OpenCode 上游（默认 `https://api.opencode.ai`）按客户端指纹拦截。普通客户端直接调用会得到 `400 MissingSessionID`、`403 Forbidden` 或 `429 FreeUsageLimitError`。因此新增独立渠道类型，协议完全兼容 OpenAI，仅在转发时补齐官方 CLI 指纹。
+- **背景**：OpenCode 上游（默认 `https://opencode.ai/zen`）按客户端指纹拦截。普通客户端直接调用会得到 `400 MissingSessionID`、`403 Forbidden` 或 `429 FreeUsageLimitError`。因此新增独立渠道类型，协议完全兼容 OpenAI，仅在转发时补齐官方 CLI 指纹。
 - **渠道类型**：`constant.ChannelTypeOpenCode = 64`（插在 `ChannelTypeSGLang=63` 与 `ChannelTypeDummy` 之间；`ChannelTypeDummy` 无显式值，顺延为 65）。**注意**：`ChannelTypeDummy` 被 `controller/model.go` 用作循环上界（`i <= ChannelTypeDummy`），顺延后这些循环会自动覆盖 64，属预期行为。
 - **文件**：`relay/channel/opencode/adaptor.go`(新)、`relay/channel/opencode/constants.go`(新)、`relay/channel/opencode/adaptor_test.go`(新)、`constant/channel.go`、`constant/api_type.go`、`common/api_type.go`、`relay/common/relay_info.go`、`relay/relay_adaptor.go`、`controller/channel.go`、`web/src/features/channels/{constants.ts,lib/channel-type-config.ts,lib/channel-utils.ts}`、`web/src/i18n/locales/*.json`(7 语言)
 - **符号**：`opencode.Adaptor{openai.Adaptor}`（**内嵌**，只覆写 `SetupRequestHeader` / `GetModelList` / `GetChannelName`，其余 12 个方法由 embedding 提升）、`SetupOpenCodeHeaders(header *http.Header, c *gin.Context)`、`constant.APITypeOpenCode`、`CHANNEL_TYPE_OPENCODE = 64`
@@ -210,7 +210,7 @@ AI 修改本仓库时必须同时满足：
 
   | 请求头 | 规则 |
   |---|---|
-  | `User-Agent` | 客户端 UA 以 `opencode/` 开头（官方 CLI）→ **原样透传**；否则强制覆盖为 `opencode/1.3.15/cli`。前缀判定**大小写不敏感**，透传时保留原值并 trim |
+  | `User-Agent` | 客户端 UA 以 `opencode/` 开头（官方 CLI）→ **原样透传**；否则强制覆盖为 `opencode/1.18.31`（版本号须 ≥ 1.17，过旧同样被拒）；`x-opencode-session` / `x-opencode-request` 为官方形状 ID；请求体须 `stream: true` 且声明 `bash`/`edit`/`glob`/`grep`/`read`（非流式客户端由本渠道把 SSE 聚合回 JSON）。原 `opencode/1.3.15/cli`。前缀判定**大小写不敏感**，透传时保留原值并 trim |
   | `x-opencode-client` | 固定 `cli`；仅当 header 上尚无该值时设置 |
   | `x-opencode-session` | 依次继承 `x-opencode-session` → `x-session-id` → `session-id`；都缺失则生成 RFC 4122 UUID（防 `400 MissingSessionID`）。**空白值视为未传** |
   | `x-opencode-request` | **每次调用**都生成新的 UUID（该头标识"本次请求"，不可继承） |
@@ -371,7 +371,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | `relaykit` 独立构建（`GOWORK=off`） | exit 0 |
 | Go 文件 `gofmt` | 全部改动 Go 文件 clean |
 | 伪 200 测试（service 12 + relay 4） | 16/16 PASS |
-| OpenCode 渠道测试 | 17/17 PASS（`go test -v ./relay/channel/opencode/...`） |
+| OpenCode 渠道测试 | 35/35 PASS（`go test -v ./relay/channel/opencode/...`） |
 | 前端 `typecheck` | exit 0 |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端全量 `vitest` | **170 文件 / 2136 用例**，连续 2 次全过 |

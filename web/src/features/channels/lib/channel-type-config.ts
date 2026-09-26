@@ -53,9 +53,9 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   [CHANNEL_TYPE_OPENCODE]: {
     id: CHANNEL_TYPE_OPENCODE,
     name: CHANNEL_TYPES[CHANNEL_TYPE_OPENCODE],
-    icon: 'OpenAI',
+    icon: 'OpenCode',
     hints: {
-      baseUrl: 'https://api.opencode.ai',
+      baseUrl: 'https://opencode.ai/zen',
       key: 'Enter OpenCode API key (oc_sk_... or partner key)',
       models: 'zen-default,zen-advanced,zen-fast,claude-3-5-sonnet,deepseek-chat',
     },
