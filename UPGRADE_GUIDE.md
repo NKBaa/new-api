@@ -162,7 +162,7 @@ AI 修改本仓库时必须同时满足：
   the prompt could not be submitted
   the prompt contains sensitive words | violat, blocked, prohibited
   ```
-  `|` 之前是**首部锚定**前缀，之后是**共现特征**（逗号分隔，OR 语义）。空行与 `#` 开头的行忽略。
+  `|` 之前是**首部锚定**前缀，之后是**共现特征**。共现特征的分隔符**同时接受**半角逗号、全角逗号（中文输入法默认）与多余的 `|`（见 `pseudo200RequiresSeparators`）——操作者按直觉输入 `a | b，c` 或 `a | b | c` 时，若只认半角逗号会把 `b，c` 当成**一个**特征，导致规则静默失效。空行与 `#` 开头的行忽略；只有 `|` 没有前缀的行忽略（不得变成"匹配一切"）。
 - **日志标识**：命中时 `reason` **即该条规则的 `prefix`**（不再单独维护描述文案）。因此「留空用内置」与「回填后保存」两条路径的判定与日志**完全一致**。
 - **检测算法（低误判是核心）**：
   1. 渠道开关关闭 → 直接放行；
@@ -326,7 +326,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 后端 build（显式包列表）+ vet | exit 0 |
 | `relaykit` 独立构建（`GOWORK=off`） | exit 0 |
 | Go 文件 `gofmt` | 43 文件全 clean |
-| 伪 200 测试（service 10 + relay 4） | 14/14 PASS |
+| 伪 200 测试（service 11 + relay 4） | 15/15 PASS |
 | 前端 `typecheck` | exit 0 |
 | 前端全量 `vitest` | **170 文件 / 2132 用例**，连续 2 次全过 |
 | 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |

@@ -145,6 +145,57 @@ func TestIsPseudo200ErrorChannelRulesEditable(t *testing.T) {
 	assert.False(t, matched, "comment-only rules resolve to an empty table, not the built-ins")
 }
 
+// TestIsPseudo200ErrorChannelRulesSeparatorTolerance 固化共现特征的分隔符容错。
+//
+// 操作者按直觉输入全角逗号（中文输入法默认）或多写一个 `|` 时，若只认半角逗号，
+// 会把 `frozen，over_quota` / `frozen | over_quota` 当成**一个**特征，导致该行前缀
+// 虽命中、requires 却永远匹配不上——规则静默失效且界面无任何提示。同一界面上的
+// 「自定义拦截特征」框已接受全角逗号，两处行为必须一致。
+func TestIsPseudo200ErrorChannelRulesSeparatorTolerance(t *testing.T) {
+	// 原文命中，且只有拆对了 requires 才会判定成功。
+	const content = "account flagged because it is frozen"
+
+	for _, separator := range []string{", ", "，", " | ", ",", "， ", " |"} {
+		t.Run("separator="+separator, func(t *testing.T) {
+			settings := dto.ChannelSettings{
+				Pseudo200Enabled: true,
+				Pseudo200Rules:   "account flagged | over_quota" + separator + "frozen",
+			}
+			matched, reason := IsPseudo200Error(settings, content)
+			assert.True(t, matched, "requires must be split on %q too", separator)
+			assert.Equal(t, "account flagged", reason)
+		})
+	}
+
+	// 对照：requires 真的都不在正文里时仍不得命中（容错不能变成宽松匹配）。
+	matched, _ := IsPseudo200Error(
+		dto.ChannelSettings{
+			Pseudo200Enabled: true,
+			Pseudo200Rules:   "account flagged | over_quota，suspended",
+		},
+		"account flagged but nothing else applies",
+	)
+	assert.False(t, matched, "separator tolerance must not weaken the co-occurrence requirement")
+
+	// 前缀两侧的空白同样被裁掉，且规则文本大小写不敏感。
+	matched, reason := IsPseudo200Error(
+		dto.ChannelSettings{
+			Pseudo200Enabled: true,
+			Pseudo200Rules:   "   ACCOUNT FLAGGED   |   FROZEN   ",
+		},
+		"account flagged as frozen",
+	)
+	assert.True(t, matched)
+	assert.Equal(t, "account flagged", reason)
+
+	// 只有竖线、没有前缀的行必须被忽略，而不是变成"匹配一切"。
+	matched, _ = IsPseudo200Error(
+		dto.ChannelSettings{Pseudo200Enabled: true, Pseudo200Rules: "| over_quota"},
+		"any content at all",
+	)
+	assert.False(t, matched, "a rule without a prefix must be ignored, not match everything")
+}
+
 // TestIsPseudo200ErrorChannelRulesStillChannelScoped 规则表同样只作用于本渠道，
 // 且仍受总开关与 400 字符上限约束。
 func TestIsPseudo200ErrorChannelRulesStillChannelScoped(t *testing.T) {

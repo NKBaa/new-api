@@ -53,6 +53,15 @@ var leadingNoise = []string{
 // pseudo200RuleSeparator 分隔一条规则的首部锚定前缀与共现特征。
 const pseudo200RuleSeparator = " | "
 
+// pseudo200RequiresSeparators 归一化共现特征的分隔符。
+//
+// 除文档写明的半角逗号外，还接受全角逗号（中文输入法默认）与多余的 `|`：
+// 操作者按直觉输入 `a | b，c` 或 `a | b | c` 时，若只认半角逗号会把 `b，c`
+// 或 `b | c` 当成**一个**特征，导致该条规则的前缀虽命中、requires 却永远匹配
+// 不上，规则静默失效。同一界面上的「自定义拦截特征」框已接受全角逗号，
+// 此处保持一致，避免两个相邻输入框行为不一致。
+var pseudo200RequiresSeparators = strings.NewReplacer("|", ",", "，", ",")
+
 // pseudo200Rules 内置指纹表（顺序匹配，命中即返回）。
 var pseudo200Rules = []pseudo200Rule{
 	// 提示词提交失败（首部锚定）
@@ -120,8 +129,9 @@ func GetChannelDefaultPseudo200Rules() string {
 // `prefix` 或 `prefix | requires1, requires2`。
 //
 // 空行与以 '#' 开头的行忽略；缺少 prefix 的行忽略；`|` 只取第一个作为分隔符，
-// 因此 prefix 之后的内容一律视为共现特征列表。解析结果为空时**不**回退内置表：
-// 调用方已确认原文非空，说明操作者主动清空了规则列表。
+// 因此 prefix 之后的内容一律视为共现特征列表，其中的 `|`、全角逗号与半角逗号
+// 都当作特征分隔符（见 pseudo200RequiresSeparators）。解析结果为空时**不**回退
+// 内置表：调用方已确认原文非空，说明操作者主动清空了规则列表。
 func parsePseudo200Rules(raw string) []pseudo200Rule {
 	rules := make([]pseudo200Rule, 0, len(pseudo200Rules))
 	for line := range strings.SplitSeq(raw, "\n") {
@@ -136,7 +146,7 @@ func parsePseudo200Rules(raw string) []pseudo200Rule {
 		}
 		rule := pseudo200Rule{prefix: prefix}
 		if hasRequires {
-			for req := range strings.SplitSeq(requiresPart, ",") {
+			for req := range strings.SplitSeq(pseudo200RequiresSeparators.Replace(requiresPart), ",") {
 				if t := strings.ToLower(strings.TrimSpace(req)); t != "" {
 					rule.requires = append(rule.requires, t)
 				}
