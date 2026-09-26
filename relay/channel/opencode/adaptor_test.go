@@ -91,6 +91,51 @@ func TestSetupOpenCodeHeadersSetsClientName(t *testing.T) {
 	assert.Equal(t, clientName, headers.Get("x-opencode-client"))
 }
 
+// TestSetupOpenCodeHeadersSendsFullOfficialFingerprint 覆盖对照参考实现补全的
+// 全部特征头：Accept、两个会话关联别名、工程标识。
+func TestSetupOpenCodeHeadersSendsFullOfficialFingerprint(t *testing.T) {
+	headers := http.Header{}
+	SetupOpenCodeHeaders(&headers, testContext(nil))
+
+	assert.Equal(t, "application/json, text/event-stream", headers.Get("Accept"),
+		"the official CLI advertises native SSE support")
+
+	session := headers.Get("x-opencode-session")
+	assert.Regexp(t, sessionIDPattern, session)
+
+	// 1.18.x 同时发送这些关联头以维持上游亲和性。
+	assert.Equal(t, session, headers.Get("x-session-affinity"))
+	assert.Equal(t, session, headers.Get("X-Session-Id"))
+
+	assert.Regexp(t, `^prj_[0-9a-f]{24}$`, headers.Get("x-opencode-project"))
+}
+
+func TestSetupOpenCodeHeadersProjectFollowsSession(t *testing.T) {
+	const session = "ses_0123456789ab0123456789QQQQ"
+
+	headers := http.Header{}
+	SetupOpenCodeHeaders(&headers, testContext(map[string]string{"x-opencode-session": session}))
+
+	// 工程标识必须与会话对齐，且可复现，便于上游做工程级关联。
+	assert.Equal(t, projectIDForSignal(session), headers.Get("x-opencode-project"))
+}
+
+func TestSetupOpenCodeHeadersKeepsExplicitProject(t *testing.T) {
+	const explicit = "prj_0123456789abcdef01234567"
+	headers := http.Header{}
+	headers.Set("x-opencode-project", explicit)
+	SetupOpenCodeHeaders(&headers, testContext(nil))
+	assert.Equal(t, explicit, headers.Get("x-opencode-project"),
+		"an explicitly provided project id must not be overwritten")
+}
+
+func TestSetupOpenCodeHeadersDoesNotInventParentSession(t *testing.T) {
+	headers := http.Header{}
+	SetupOpenCodeHeaders(&headers, testContext(nil))
+	assert.Empty(t, headers.Get("x-parent-session-id"),
+		"the parent session is optional and must only be forwarded when the client supplies it")
+}
+
 func TestSetupOpenCodeHeadersGeneratesOfficialShapedIDs(t *testing.T) {
 	headers := http.Header{}
 	SetupOpenCodeHeaders(&headers, testContext(nil))
@@ -195,13 +240,62 @@ func TestSetupOpenCodeHeadersSessionPrecedence(t *testing.T) {
 	}))
 	assert.Equal(t, first, headers.Get("x-opencode-session"))
 
-	// x-opencode-session 形状非法时回退到 x-session-id。
+	// 与参考实现一致：取**第一个非空**信号后规范化，而不是跳过形状非法的值去用下一个。
+	// 这样同一会话的标识始终由同一个来源决定，不会在轮次之间漂移。
 	headers = http.Header{}
 	SetupOpenCodeHeaders(&headers, testContext(map[string]string{
 		"x-opencode-session": "bad",
 		"x-session-id":       second,
 	}))
-	assert.Equal(t, second, headers.Get("x-opencode-session"))
+	got := headers.Get("x-opencode-session")
+	assert.NotEqual(t, "bad", got)
+	assert.Regexp(t, sessionIDPattern, got)
+	assert.NotEqual(t, second, got, "the first non-empty signal wins, so the second is not used")
+}
+
+func TestSetupOpenCodeHeadersInheritsAliasSessionHeaders(t *testing.T) {
+	const canonical = "ses_0123456789ab0123456789FFFF"
+	for _, name := range []string{"x-session-affinity", "X-Session-Id", "conversation-id"} {
+		t.Run("header="+name, func(t *testing.T) {
+			headers := http.Header{}
+			SetupOpenCodeHeaders(&headers, testContext(map[string]string{name: canonical}))
+			assert.Equal(t, canonical, headers.Get("x-opencode-session"),
+				"1.18.x correlation aliases must be recognised as session signals")
+		})
+	}
+}
+
+func TestSetupOpenCodeHeadersCanonicalizesForeignSession(t *testing.T) {
+	// 非官方形状的下行信号（UUID、外部客户端会话）不应被丢弃：丢弃会让多轮对话
+	// 每轮换一个上游会话，从而失去 prompt 缓存亲和性。应确定性规范化。
+	const uuid = "550e8400-e29b-41d4-a716-446655440000"
+
+	first := http.Header{}
+	SetupOpenCodeHeaders(&first, testContext(map[string]string{"x-opencode-session": uuid}))
+	got := first.Get("x-opencode-session")
+	assert.Regexp(t, sessionIDPattern, got)
+
+	// 同一输入必须得到同一会话（确定性），不同输入必须得到不同会话。
+	second := http.Header{}
+	SetupOpenCodeHeaders(&second, testContext(map[string]string{"x-opencode-session": uuid}))
+	assert.Equal(t, got, second.Get("x-opencode-session"), "the same signal must map to the same session")
+
+	other := http.Header{}
+	SetupOpenCodeHeaders(&other, testContext(map[string]string{"x-opencode-session": "another-session"}))
+	assert.NotEqual(t, got, other.Get("x-opencode-session"))
+}
+
+func TestCanonicalSessionIDPreservesOfficialShape(t *testing.T) {
+	const official = "ses_0123456789ab0123456789ZZZZ"
+	assert.Equal(t, official, canonicalSessionID(official), "an official session must pass through unchanged")
+}
+
+func TestProjectIDForSignalIsStableAndShaped(t *testing.T) {
+	projectPattern := `^prj_[0-9a-f]{24}$`
+	first := projectIDForSignal("session-a")
+	assert.Regexp(t, projectPattern, first)
+	assert.Equal(t, first, projectIDForSignal("session-a"), "the project id must be deterministic")
+	assert.NotEqual(t, first, projectIDForSignal("session-b"))
 }
 
 func TestSetupOpenCodeHeadersKeepsExistingSessionHeader(t *testing.T) {

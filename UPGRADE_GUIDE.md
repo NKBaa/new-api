@@ -210,14 +210,23 @@ AI 修改本仓库时必须同时满足：
 
   | 请求头 | 规则 |
   |---|---|
-  | `User-Agent` | 客户端 UA 以 `opencode/` 开头（官方 CLI）→ **原样透传**；否则强制覆盖为 `opencode/1.18.31`（版本号须 ≥ 1.17，过旧同样被拒）；`x-opencode-session` / `x-opencode-request` 为官方形状 ID；请求体须 `stream: true` 且声明 `bash`/`edit`/`glob`/`grep`/`read`（非流式客户端由本渠道把 SSE 聚合回 JSON）。原 `opencode/1.3.15/cli`。前缀判定**大小写不敏感**，透传时保留原值并 trim |
-  | `x-opencode-client` | 固定 `cli`；仅当 header 上尚无该值时设置 |
-  | `x-opencode-session` | 依次继承 `x-opencode-session` → `x-session-id` → `session-id`；都缺失则生成 RFC 4122 UUID（防 `400 MissingSessionID`）。**空白值视为未传** |
-  | `x-opencode-request` | **每次调用**都生成新的 UUID（该头标识"本次请求"，不可继承） |
+  | `User-Agent` | 客户端 UA 以 `opencode/` 开头**且版本 ≥ 1.17** 才原样透传；否则覆盖为 `opencode/1.18.31`。前缀判定大小写不敏感，透传时 trim。**注意**：过旧的官方 UA（如 `opencode/1.3.15`）同样被闸门拒绝，必须覆盖 |
+  | `Accept` | 固定 `application/json, text/event-stream`（官方 CLI 声明原生支持流式） |
+  | `x-opencode-client` | 固定 `cli`；仅当尚无该值时设置 |
+  | `x-opencode-session` | 取**第一个非空**信号后规范化：优先请求体阶段派生的稳定标识 → `x-opencode-session` → `x-session-affinity` → `X-Session-Id` → `x-session-id` → `session-id` → `conversation-id`；都没有才新生成 |
+  | `x-session-affinity` / `X-Session-Id` | 与 `x-opencode-session` **同值**（1.18.x 的关联别名，同时保留 `x-opencode-session` 以兼容较早的 Zen 部署） |
+  | `x-opencode-request` | **每次调用**都生成新 ID（标识"本次请求"，不可继承） |
+  | `x-opencode-project` | `prj_ + 24 位十六进制`，由工程信号 SHA-256 确定性派生；仅当尚无该值时设置 |
+  | `x-parent-session-id` | **仅在客户端提供时**透传，不凭空生成 |
+
+  **ID 形状（关键）**：`ses_` / `msg_` + 12 位小写十六进制时间字段 + 14 位 base62，总长 26 —— **不是 UUID**。时间字段为 `毫秒 × 0x1000 + 同毫秒自增计数`（`ses_` 取反为 descending），与官方生成器
+  `packages/opencode/src/id/id.ts` 一致。非官方形状的下行信号（UUID、外部会话）会被**确定性哈希**成合规 ID 而非丢弃，否则多轮对话每轮换会话、丢掉上游 prompt 缓存亲和性。
+
+  **请求体形状（关键）**：闸门同时校验请求体。免费请求须 `stream: true` 且声明官方内置工具 `bash`/`edit`/`glob`/`grep`/`read`（描述固定为 `Agent tool <name>`），否则在**所有通道**返回 `403 FreeTierError`。非流式客户端由本渠道把 SSE 聚合回 JSON。
 
 - **header_override 优先级最高（不要在适配器里自己处理）**：两条链路都在本函数**之后**套用 override —— 转发链路是 `channel.DoApiRequest` 在 `SetupRequestHeader` 之后调用 `applyHeaderOverrideToRequest`（见 `relay/channel/api_request.go` 注释「确保用户设置优先级最高」）；模型拉取链路是 `applyFetchModelsHeaderOverrides` 在 `buildFetchModelsHeaders` 里于本函数之后调用。因此**只需把 `SetupOpenCodeHeaders` 放在 override 之前**即可，无需特殊分支。
 - **模型拉取也要伪装**：`controller/channel.go` 的 `buildFetchModelsHeaders` 增加 `channel.Type == constant.ChannelTypeOpenCode` 分支并调用 `opencode.SetupOpenCodeHeaders(&headers, nil)`（`c == nil` 走到默认指纹分支）。否则后台「获取模型列表」会被上游拦截。
-- **前端**：`constants.ts` 新增 `CHANNEL_TYPE_OPENCODE = 64`、`CHANNEL_TYPES[64]='OpenCode'`、`CHANNEL_PROVIDER_PRESENTATION[64]`、`CHANNEL_TYPE_DISPLAY_ORDER` 加入 64（紧随 61）、三个 Set（`MODEL_FETCHABLE_TYPES` / `FIELD_PASSTHROUGH_TYPES` / `OPENAI_FIELD_PASSTHROUGH_TYPES`）加入 64、`TYPE_TO_KEY_PROMPT[64]`；`channel-type-config.ts` 注册配置（**icon `'OpenAI'`**，复用成熟 OpenAI 表单卡片）；`channel-utils.ts` 的 `TYPE_TO_ICON[64]='OpenAI'`。
+- **前端**：`constants.ts` 新增 `CHANNEL_TYPE_OPENCODE = 64`、`CHANNEL_TYPES[64]='OpenCode'`、`CHANNEL_PROVIDER_PRESENTATION[64]`、`CHANNEL_TYPE_DISPLAY_ORDER` 加入 64（紧随 61）、三个 Set（`MODEL_FETCHABLE_TYPES` / `FIELD_PASSTHROUGH_TYPES` / `OPENAI_FIELD_PASSTHROUGH_TYPES`）加入 64、`TYPE_TO_KEY_PROMPT[64]`；`channel-type-config.ts` 注册配置（**icon `'OpenCode'`**，`@lobehub/icons` 已内置该图标，无需新增资源）；`channel-utils.ts` 的 `TYPE_TO_ICON[64]='OpenCode'`。
 - **⚠️ 易错点**：
   1. `CHANNEL_PROVIDER_PRESENTATION` 有 `satisfies Record<Exclude<keyof typeof CHANNEL_TYPES, 0 | 61>, …>` 约束 —— **给 `CHANNEL_TYPES` 加了键就必须同步加 presentation**，否则 typecheck 直接失败；
   2. `opencode.Adaptor` 用**值内嵌** `openai.Adaptor`（不是指针），embedding 才能提升全部方法满足 `channel.Adaptor` 接口；
@@ -371,7 +380,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | `relaykit` 独立构建（`GOWORK=off`） | exit 0 |
 | Go 文件 `gofmt` | 全部改动 Go 文件 clean |
 | 伪 200 测试（service 12 + relay 4） | 16/16 PASS |
-| OpenCode 渠道测试 | 35/35 PASS（`go test -v ./relay/channel/opencode/...`） |
+| OpenCode 渠道测试 | 44/44 PASS（`go test -v ./relay/channel/opencode/...`） |
 | 前端 `typecheck` | exit 0 |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端全量 `vitest` | **170 文件 / 2136 用例**，连续 2 次全过 |

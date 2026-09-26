@@ -68,6 +68,18 @@ func TestEnsureAgentToolsInjectsAllRequiredTools(t *testing.T) {
 	assert.Len(t, req.Tools, len(officialAgentTools))
 }
 
+func TestEnsureAgentToolsUsesOfficialDescriptionShape(t *testing.T) {
+	// 对齐 opencode2api 的 "Agent tool <name>"。长句负面约束既有明显伪造特征，
+	// 也可能干扰小模型推理，因此必须保持这一形态。
+	req := &dto.GeneralOpenAIRequest{Model: "m"}
+	ensureAgentTools(req)
+
+	require.NotEmpty(t, req.Tools)
+	for _, tool := range req.Tools {
+		assert.Equal(t, "Agent tool "+tool.Function.Name, tool.Function.Description)
+	}
+}
+
 func TestEnsureAgentToolsPreservesClientToolsAndDoesNotDuplicate(t *testing.T) {
 	req := &dto.GeneralOpenAIRequest{
 		Model: "m",

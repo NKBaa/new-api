@@ -3,6 +3,7 @@ package opencode
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,9 +51,28 @@ const (
 	// 需要在 DoResponse 阶段把 SSE 聚合回 JSON。
 	contextKeyCollapseStream = "opencode_collapse_stream"
 
-	// agentToolDescription 劝阻模型真的调用这些占位工具。
-	agentToolDescription = "Unavailable in this client. Never call this tool; use the other tools instead."
+	// contextKeySessionIdentity 存放 ConvertOpenAIRequest 阶段派生好的会话标识。
+	// 该阶段早于 SetupRequestHeader，因此可以把请求体里的稳定信号（会话 ID、
+	// 首条用户消息）一并纳入指纹。
+	contextKeySessionIdentity = "opencode_session_identity"
+
+	// defaultProjectSignal 在客户端未提供工程信号时使用。
+	defaultProjectSignal = "newapi:default-project"
+
+	// agentToolDescription 对齐官方形态（"Agent tool <name>"）。刻意不用长句
+	// 负面约束 —— 那种文案既有明显人工伪造特征，也可能干扰小模型推理。
+	agentToolDescriptionPrefix = "Agent tool "
+
+	// projectIDPrefix 是 x-opencode-project 的前缀，后接 24 位十六进制。
+	projectIDPrefix = "prj"
 )
+
+// sessionIdentity 是一次请求派生出的稳定标识集合。
+type sessionIdentity struct {
+	Session       string
+	Project       string
+	ParentSession string
+}
 
 // officialAgentTools 是上游认定的 agent 形状所要求的工具名。
 var officialAgentTools = []string{"bash", "edit", "glob", "grep", "read"}
@@ -67,8 +87,16 @@ const (
 	requestIDPrefix  = "msg"
 )
 
-// sessionHeaderCandidates 依次尝试继承客户端已有的会话标识。
-var sessionHeaderCandidates = []string{"x-opencode-session", "x-session-id", "session-id"}
+// sessionHeaderCandidates 依次尝试继承客户端已有的会话标识。除官方头外还包含
+// 1.18.x 使用的关联别名与通用会话头，以便外部客户端也能保住上游缓存亲和性。
+var sessionHeaderCandidates = []string{
+	"x-opencode-session",
+	"x-session-affinity",
+	"X-Session-Id",
+	"x-session-id",
+	"session-id",
+	"conversation-id",
+}
 
 // idState 让同一毫秒内的多个 ID 共享自增计数，与官方生成器一致。
 var (
@@ -120,6 +148,21 @@ func isOpenCodeClientID(id, prefix string) bool {
 		}
 	}
 	return true
+}
+
+// canonicalSessionID 把任意下行信号规范化为官方会话 ID 形状。已经是官方形状的
+// 原样保留（保住上游 prompt 缓存亲和性）；其余（UUID、外部客户端会话、网关会话、
+// 会话种子）确定性哈希，使同一会话在多轮之间保持同一个 ID。
+func canonicalSessionID(signal string) string {
+	if isOpenCodeClientID(signal, sessionIDPrefix) {
+		return signal
+	}
+	sum := sha256.Sum256([]byte(sessionIDPrefix + "\x00" + signal))
+	random := make([]byte, idRandomLength)
+	for i := range idRandomLength {
+		random[i] = idBase62Alphabet[int(sum[6+i])%len(idBase62Alphabet)]
+	}
+	return fmt.Sprintf("%s_%x%s", sessionIDPrefix, sum[:6], random)
 }
 
 // newClientID 生成官方形状的客户端 ID。descending 用于 ses_（官方对会话 ID 取反），
@@ -176,31 +219,87 @@ func SetupOpenCodeHeaders(header *http.Header, c *gin.Context) {
 		clientUA = officialUserAgent
 	}
 	header.Set("User-Agent", clientUA)
+	// 声明客户端原生支持流式事件（官方 CLI 必带）。
+	header.Set("Accept", "application/json, text/event-stream")
 
 	// 客户端标识：仅在未显式传入时补齐。
 	if header.Get("x-opencode-client") == "" {
 		header.Set("x-opencode-client", clientName)
 	}
 
-	// 会话标识：只继承形状合法的官方 ID，否则生成新 ID，防止 400 MissingSessionID。
-	if header.Get("x-opencode-session") == "" {
-		sessionID := ""
-		if c != nil && c.Request != nil {
-			for _, name := range sessionHeaderCandidates {
-				if v := strings.TrimSpace(c.Request.Header.Get(name)); isOpenCodeClientID(v, sessionIDPrefix) {
-					sessionID = v
-					break
-				}
-			}
-		}
-		if sessionID == "" {
-			sessionID = newClientID(sessionIDPrefix, true)
-		}
+	// 会话标识：优先使用请求体阶段派生好的稳定标识（能纳入 body 信号），
+	// 否则从客户端头继承合法形状的官方 ID，都没有才生成新 ID。
+	sessionID := header.Get("x-opencode-session")
+	if sessionID == "" {
+		sessionID = deriveSessionID(c)
 		header.Set("x-opencode-session", sessionID)
 	}
 
+	// OpenCode 1.18.x 会同时发送这些关联头以维持上游的 prompt/session 亲和性；
+	// 保留 x-opencode-session 是为了让较早的 Zen 部署仍能识别请求。
+	header.Set("x-session-affinity", sessionID)
+	header.Set("X-Session-Id", sessionID)
+
 	// 每次请求独立的唯一标识。
 	header.Set("x-opencode-request", newClientID(requestIDPrefix, false))
+
+	// 工程标识：同一会话保持稳定，符合官方形状 prj_ + 24 位十六进制。
+	if header.Get("x-opencode-project") == "" {
+		project := projectIDForSignal(sessionID)
+		if identity, ok := sessionIdentityFromContext(c); ok && identity.Project != "" {
+			project = identity.Project
+		}
+		header.Set("x-opencode-project", project)
+	}
+
+	// 父会话透传：仅在客户端提供时发送。
+	if header.Get("x-parent-session-id") == "" {
+		if identity, ok := sessionIdentityFromContext(c); ok && identity.ParentSession != "" {
+			header.Set("x-parent-session-id", identity.ParentSession)
+		}
+	}
+}
+
+// deriveSessionID 依次尝试：请求体阶段派生的稳定标识 → 客户端头 → 新生成 ID。
+func deriveSessionID(c *gin.Context) string {
+	if identity, ok := sessionIdentityFromContext(c); ok && identity.Session != "" {
+		return identity.Session
+	}
+	if c != nil && c.Request != nil {
+		for _, name := range sessionHeaderCandidates {
+			v := strings.TrimSpace(c.Request.Header.Get(name))
+			if v == "" {
+				continue
+			}
+			if isOpenCodeClientID(v, sessionIDPrefix) {
+				return v
+			}
+			// 非官方形状的下行信号（UUID、外部会话）也确定性规范化，而不是丢弃，
+			// 否则多轮对话会每轮换一个会话、丢掉上游缓存亲和性。
+			return canonicalSessionID(v)
+		}
+	}
+	return newClientID(sessionIDPrefix, true)
+}
+
+// sessionIdentityFromContext 读取 ConvertOpenAIRequest 阶段派生的标识。
+func sessionIdentityFromContext(c *gin.Context) (sessionIdentity, bool) {
+	if c == nil {
+		return sessionIdentity{}, false
+	}
+	value, exists := c.Get(contextKeySessionIdentity)
+	if !exists {
+		return sessionIdentity{}, false
+	}
+	identity, ok := value.(sessionIdentity)
+	return identity, ok
+}
+
+// projectIDForSignal 把工程信号确定性映射为官方形状的工程标识
+// （prj_ + 24 位十六进制）。同一会话始终得到同一个值。
+func projectIDForSignal(signal string) string {
+	sum := sha256.Sum256([]byte(projectIDPrefix + "\x00" + signal))
+	return fmt.Sprintf("%s_%x", projectIDPrefix, sum[:12])
 }
 
 // ensureAgentTools 补齐上游要求的 agent 工具，已声明的同名工具保持不变。
@@ -219,7 +318,7 @@ func ensureAgentTools(req *dto.GeneralOpenAIRequest) {
 			Type: "function",
 			Function: dto.FunctionRequest{
 				Name:        name,
-				Description: agentToolDescription,
+				Description: agentToolDescriptionPrefix + name,
 				Parameters: map[string]any{
 					"type":       "object",
 					"properties": map[string]any{},
@@ -262,14 +361,78 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	converted, err := a.Adaptor.ConvertOpenAIRequest(c, info, request)
 	if err != nil {
 		return nil, err
-	} // 上游形状整形只作用于本渠道的 chat 请求体。透传模式（PassThroughBodyEnabled）
+	}
+	// 上游形状整形只作用于本渠道的 chat 请求体。透传模式（PassThroughBodyEnabled）
 	// 不经过本函数，此时仅保留请求头伪装。
 	shaped, ok := converted.(*dto.GeneralOpenAIRequest)
 	if !ok || shaped == nil {
 		return converted, nil
 	}
 	applyAgentShape(c, shaped)
+	deriveSessionIdentity(c, shaped)
 	return shaped, nil
+}
+
+// deriveSessionIdentity 在请求体仍可读的阶段派生会话/工程标识。此处能取到
+// 请求体里的稳定信号（显式会话 ID、首条用户消息），比只看请求头更容易让同一
+// 会话在多轮之间复用同一个上游会话，从而保住 prompt 缓存亲和性。
+func deriveSessionIdentity(c *gin.Context, req *dto.GeneralOpenAIRequest) {
+	if c == nil || req == nil {
+		return
+	}
+	signal := firstSessionSignal(c, req)
+	if signal == "" {
+		signal = conversationSeed(req)
+	}
+	if signal == "" {
+		// 没有稳定信号时仍生成一个合规会话；请求头阶段会复用该值。
+		signal = newClientID(sessionIDPrefix, true)
+	}
+
+	projectSignal := strings.TrimSpace(c.Request.Header.Get("x-opencode-project"))
+	if projectSignal == "" {
+		projectSignal = defaultProjectSignal
+	}
+	parentSession := strings.TrimSpace(c.Request.Header.Get("x-parent-session-id"))
+
+	c.Set(contextKeySessionIdentity, sessionIdentity{
+		Session:       canonicalSessionID(signal),
+		Project:       projectIDForSignal(projectSignal),
+		ParentSession: parentSession,
+	})
+}
+
+// firstSessionSignal 依次尝试客户端显式提供的会话信号。
+func firstSessionSignal(c *gin.Context, req *dto.GeneralOpenAIRequest) string {
+	if c != nil && c.Request != nil {
+		for _, name := range sessionHeaderCandidates {
+			if v := strings.TrimSpace(c.Request.Header.Get(name)); v != "" {
+				return v
+			}
+		}
+	}
+	return ""
+}
+
+// conversationSeed 用首条用户消息作为会话信号：多轮对话历史增长时它的开头不变，
+// 因此同一会话保持稳定，而开场不同的会话会被区分开。
+func conversationSeed(req *dto.GeneralOpenAIRequest) string {
+	for _, msg := range req.Messages {
+		if !strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
+			continue
+		}
+		switch content := msg.Content.(type) {
+		case string:
+			if content != "" {
+				return content
+			}
+		default:
+			if encoded, err := common.Marshal(content); err == nil && len(encoded) > 0 && string(encoded) != "null" {
+				return string(encoded)
+			}
+		}
+	}
+	return ""
 }
 
 // DoResponse 在「上游被强制流式而客户端要求非流式」时，先把 SSE 聚合成单个
