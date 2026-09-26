@@ -6961,6 +6961,8 @@
     "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "仅对本渠道生效，在内置特征之外追加。仅当响应正文不超过 400 字符且命中特征时，才判定为伪 200 异常。",
     "Blocking signatures": "拦截特征规则",
     "Each line is a signature, optionally followed by | and comma-separated words that must also appear.": "每行一条规则：拦截特征，可用 | 追加必须同时出现的词（逗号分隔）。",
-    "A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.": "仅当响应以某条特征开头且正文不超过 {{chars}} 字符时，才判定为伪 200 异常。清空列表则回退到内置特征。"
+    "A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.": "仅当响应以某条特征开头且正文不超过 {{chars}} 字符时，才判定为伪 200 异常。清空列表则回退到内置特征。",
+    "Connect to OpenCode model services with official client spoofing": "连接 OpenCode 模型服务，自动伪装官方客户端标识",
+    "Enter OpenCode API key (oc_sk_... or partner key)": "输入 OpenCode API 密钥（如 oc_sk_... 或合作厂商密钥）"
   }
 }

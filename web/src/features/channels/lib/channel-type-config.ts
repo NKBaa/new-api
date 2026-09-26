@@ -20,6 +20,7 @@ import {
   CHANNEL_TYPES,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_OPENCODE,
 } from '../constants'
 
 // ============================================================================
@@ -49,6 +50,16 @@ export interface ChannelTypeConfig {
  * Configuration for each channel type
  */
 export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
+  [CHANNEL_TYPE_OPENCODE]: {
+    id: CHANNEL_TYPE_OPENCODE,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_OPENCODE],
+    icon: 'OpenAI',
+    hints: {
+      baseUrl: 'https://api.opencode.ai',
+      key: 'Enter OpenCode API key (oc_sk_... or partner key)',
+      models: 'zen-default,zen-advanced,zen-fast,claude-3-5-sonnet,deepseek-chat',
+    },
+  },
   [CHANNEL_TYPE_SGLANG]: {
     id: CHANNEL_TYPE_SGLANG,
     name: CHANNEL_TYPES[CHANNEL_TYPE_SGLANG],

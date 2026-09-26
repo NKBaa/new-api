@@ -23,8 +23,11 @@ import {
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_OPENCODE,
   CHANNEL_TYPE_OPTIONS,
+  FIELD_PASSTHROUGH_TYPES,
   MODEL_FETCHABLE_TYPES,
+  OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../../constants'
 import { channelSchema } from '../../types'
 import {
@@ -324,5 +327,84 @@ describe('New API channel task plugin extensions', () => {
     expect(
       JSON.parse(otherPayload.channel.setting ?? '{}').pseudo_200_enabled
     ).toBe(false)
+  })
+})
+
+describe('OpenCode channel', () => {
+  test('registers selection, ordering, model discovery, and icon metadata', () => {
+    const option = CHANNEL_TYPE_OPTIONS.find(
+      (item) => item.value === CHANNEL_TYPE_OPENCODE
+    )
+
+    expect(option).toEqual({ value: CHANNEL_TYPE_OPENCODE, label: 'OpenCode' })
+    // 紧随 Task Plugin 之后，与 New API / Sub2API 等同属网关型渠道一组。
+    expect(
+      CHANNEL_TYPE_OPTIONS.findIndex(
+        (item) => item.value === CHANNEL_TYPE_OPENCODE
+      )
+    ).toBe(
+      CHANNEL_TYPE_OPTIONS.findIndex((item) => item.value === 61) + 1
+    )
+    expect(MODEL_FETCHABLE_TYPES.has(CHANNEL_TYPE_OPENCODE)).toBe(true)
+    expect(FIELD_PASSTHROUGH_TYPES.has(CHANNEL_TYPE_OPENCODE)).toBe(true)
+    expect(OPENAI_FIELD_PASSTHROUGH_TYPES.has(CHANNEL_TYPE_OPENCODE)).toBe(true)
+    expect(getChannelTypeIcon(CHANNEL_TYPE_OPENCODE)).toBe('OpenAI')
+    expect(getKeyPromptForType(CHANNEL_TYPE_OPENCODE)).toBe(
+      'Enter OpenCode API key (oc_sk_... or partner key)'
+    )
+  })
+
+  test('exposes default Base URL, key prompt, and preset models', () => {
+    const config = getChannelTypeConfig(CHANNEL_TYPE_OPENCODE)
+
+    expect(config.icon).toBe('OpenAI')
+    expect(config.hints?.baseUrl).toBe('https://api.opencode.ai')
+    expect(config.hints?.key).toBe(
+      'Enter OpenCode API key (oc_sk_... or partner key)'
+    )
+    expect(config.hints?.models).toContain('zen-default')
+    expect(config.hints?.models).toContain('claude-3-5-sonnet')
+  })
+
+  test('does not require organization or region, unlike the plain OpenAI type', () => {
+    const config = getChannelTypeConfig(CHANNEL_TYPE_OPENCODE)
+    expect(config.requiresOrganization).toBeFalsy()
+    expect(config.requiresRegion).toBeFalsy()
+  })
+
+  test('round-trips through the channel form payload like a plain OpenAI channel', () => {
+    const payload = transformFormDataToCreatePayload(
+      channelFormSchema.parse({
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        name: 'OpenCode upstream',
+        type: CHANNEL_TYPE_OPENCODE,
+        base_url: 'https://api.opencode.ai',
+        key: 'oc_sk_test',
+        models: 'zen-default',
+      })
+    )
+
+    expect(payload.channel.type).toBe(CHANNEL_TYPE_OPENCODE)
+    expect(payload.channel.base_url).toBe('https://api.opencode.ai')
+    expect(payload.channel.models).toBe('zen-default')
+
+    const defaults = transformChannelToFormDefaults(
+      channelSchema.parse({
+        id: 77,
+        name: 'OpenCode upstream',
+        type: CHANNEL_TYPE_OPENCODE,
+        key: 'oc_sk_test',
+        status: 1,
+        created_time: 1,
+        test_time: 0,
+        response_time: 0,
+        balance_updated_time: 0,
+        models: 'zen-default',
+        group: 'default',
+        base_url: 'https://api.opencode.ai',
+      })
+    )
+    expect(defaults.type).toBe(CHANNEL_TYPE_OPENCODE)
+    expect(defaults.base_url).toBe('https://api.opencode.ai')
   })
 })

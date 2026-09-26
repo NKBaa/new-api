@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
@@ -301,6 +302,12 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 		headers = GetClaudeAuthHeader(key)
 	default:
 		headers = GetAuthHeader(key)
+	}
+
+	// OpenCode 上游按客户端指纹拦截，模型拉取同样需要伪装官方 CLI。
+	// 放在 header_override 之前，操作者自定义头仍为最高优先级。
+	if channel.Type == constant.ChannelTypeOpenCode {
+		opencode.SetupOpenCodeHeaders(&headers, nil)
 	}
 
 	if err := applyFetchModelsHeaderOverrides(channel, key, headers); err != nil {

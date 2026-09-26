@@ -13,9 +13,9 @@
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
 | 当前交付提交 | `cb668037e` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
-| 相对基线改动 | **120 文件** = 34 新增 + 86 修改 + **0 删除** |
-| 其中非业务文件 | 5 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`PORTING_GUIDE.md`(A，后已删除)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
-| 纯业务改动 | **116 文件** = 31 新增 + 85 修改 |
+| 相对基线改动 | **131 文件** = 37 新增 + 94 修改 + **0 删除** |
+| 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
+| 纯业务改动 | **127 文件** = 34 新增 + 93 修改 |
 | 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
@@ -70,7 +70,7 @@ AI 修改本仓库时必须同时满足：
 
 ---
 
-## 2. 十一项业务实现索引
+## 2. 十二项业务实现索引
 
 每项给出：**涉及文件** → **关键符号** → **存储位置** → **移植注意点**。
 
@@ -143,7 +143,7 @@ AI 修改本仓库时必须同时满足：
 
 ### B10 · 全链路 i18n
 - **文件**：`i18n/i18n.go`、`i18n/keys.go`、`i18n/locales/{en,zh-CN,zh-TW}.yaml`、`web/src/i18n/locales/{en,zh,zh-TW,ja,fr,ru,vi}.json`、`setting/console_setting/validation.go`
-- **规模**：后端 3 语言 × 265 键（其中 24 个 `sanitize.*` 为本次新增）；前端 7 语言 × **6962 键，0 缺失/0 多余/0 重复**
+- **规模**：后端 3 语言 × 265 键（其中 24 个 `sanitize.*` 为本次新增）；前端 7 语言 × **6964 键，0 缺失/0 多余/0 重复**
 - **约定**：
   - 后端库 `nicksnyder/go-i18n/v2`，语言 en / zh-CN / zh-TW；
   - 前端 `i18next`，key **就是英文源串**（flat JSON）；
@@ -198,23 +198,51 @@ AI 修改本仓库时必须同时满足：
 
 ---
 
-## 3. 改动文件清单（116 业务文件）
+### B12 · OpenCode 渠道（官方客户端指纹伪装）
+- **背景**：OpenCode 上游（默认 `https://api.opencode.ai`）按客户端指纹拦截。普通客户端直接调用会得到 `400 MissingSessionID`、`403 Forbidden` 或 `429 FreeUsageLimitError`。因此新增独立渠道类型，协议完全兼容 OpenAI，仅在转发时补齐官方 CLI 指纹。
+- **渠道类型**：`constant.ChannelTypeOpenCode = 64`（插在 `ChannelTypeSGLang=63` 与 `ChannelTypeDummy` 之间；`ChannelTypeDummy` 无显式值，顺延为 65）。**注意**：`ChannelTypeDummy` 被 `controller/model.go` 用作循环上界（`i <= ChannelTypeDummy`），顺延后这些循环会自动覆盖 64，属预期行为。
+- **文件**：`relay/channel/opencode/adaptor.go`(新)、`relay/channel/opencode/constants.go`(新)、`relay/channel/opencode/adaptor_test.go`(新)、`constant/channel.go`、`constant/api_type.go`、`common/api_type.go`、`relay/common/relay_info.go`、`relay/relay_adaptor.go`、`controller/channel.go`、`web/src/features/channels/{constants.ts,lib/channel-type-config.ts,lib/channel-utils.ts}`、`web/src/i18n/locales/*.json`(7 语言)
+- **符号**：`opencode.Adaptor{openai.Adaptor}`（**内嵌**，只覆写 `SetupRequestHeader` / `GetModelList` / `GetChannelName`，其余 12 个方法由 embedding 提升）、`SetupOpenCodeHeaders(header *http.Header, c *gin.Context)`、`constant.APITypeOpenCode`、`CHANNEL_TYPE_OPENCODE = 64`
+- **存储**：**零新增字段**。渠道类型是既有 `channels.type` 列的一个新取值，配置复用既有列与 `setting` JSON → **0 DDL**。
+- **伪装规则（`SetupOpenCodeHeaders`）**：
+
+  | 请求头 | 规则 |
+  |---|---|
+  | `User-Agent` | 客户端 UA 以 `opencode/` 开头（官方 CLI）→ **原样透传**；否则强制覆盖为 `opencode/1.3.15/cli`。前缀判定**大小写不敏感**，透传时保留原值并 trim |
+  | `x-opencode-client` | 固定 `cli`；仅当 header 上尚无该值时设置 |
+  | `x-opencode-session` | 依次继承 `x-opencode-session` → `x-session-id` → `session-id`；都缺失则生成 RFC 4122 UUID（防 `400 MissingSessionID`）。**空白值视为未传** |
+  | `x-opencode-request` | **每次调用**都生成新的 UUID（该头标识"本次请求"，不可继承） |
+
+- **header_override 优先级最高（不要在适配器里自己处理）**：两条链路都在本函数**之后**套用 override —— 转发链路是 `channel.DoApiRequest` 在 `SetupRequestHeader` 之后调用 `applyHeaderOverrideToRequest`（见 `relay/channel/api_request.go` 注释「确保用户设置优先级最高」）；模型拉取链路是 `applyFetchModelsHeaderOverrides` 在 `buildFetchModelsHeaders` 里于本函数之后调用。因此**只需把 `SetupOpenCodeHeaders` 放在 override 之前**即可，无需特殊分支。
+- **模型拉取也要伪装**：`controller/channel.go` 的 `buildFetchModelsHeaders` 增加 `channel.Type == constant.ChannelTypeOpenCode` 分支并调用 `opencode.SetupOpenCodeHeaders(&headers, nil)`（`c == nil` 走到默认指纹分支）。否则后台「获取模型列表」会被上游拦截。
+- **前端**：`constants.ts` 新增 `CHANNEL_TYPE_OPENCODE = 64`、`CHANNEL_TYPES[64]='OpenCode'`、`CHANNEL_PROVIDER_PRESENTATION[64]`、`CHANNEL_TYPE_DISPLAY_ORDER` 加入 64（紧随 61）、三个 Set（`MODEL_FETCHABLE_TYPES` / `FIELD_PASSTHROUGH_TYPES` / `OPENAI_FIELD_PASSTHROUGH_TYPES`）加入 64、`TYPE_TO_KEY_PROMPT[64]`；`channel-type-config.ts` 注册配置（**icon `'OpenAI'`**，复用成熟 OpenAI 表单卡片）；`channel-utils.ts` 的 `TYPE_TO_ICON[64]='OpenAI'`。
+- **⚠️ 易错点**：
+  1. `CHANNEL_PROVIDER_PRESENTATION` 有 `satisfies Record<Exclude<keyof typeof CHANNEL_TYPES, 0 | 61>, …>` 约束 —— **给 `CHANNEL_TYPES` 加了键就必须同步加 presentation**，否则 typecheck 直接失败；
+  2. `opencode.Adaptor` 用**值内嵌** `openai.Adaptor`（不是指针），embedding 才能提升全部方法满足 `channel.Adaptor` 接口；
+  3. `SetupOpenCodeHeaders` 必须容忍 `c == nil` 与 `header == nil`（后台任务无请求上下文）；
+  4. 新增的 2 个 i18n 键（渠道描述与 Key 提示）必须加在 `"translation"` **对象内部**（见 §1 约束三）。
+- **测试**：`relay/channel/opencode/adaptor_test.go` 17 个用例覆盖通用 UA 替换（Cursor / Cherry Studio / NextChat / Python / curl / 空）、官方 UA 透传（含大小写与首尾空白）、client 名注入与不覆盖、session 生成/继承/优先级/空白回退/不覆盖既有、request id 唯一性与强制刷新、`c == nil` 与 `header == nil` 的健壮性、override 覆盖。前端在 `new-api-channel.test.ts` 覆盖下拉选项、排序、三个 Set、图标、默认 Base URL、Key 提示、预置模型与表单往返。
+- **自查命令**：`go test -v ./relay/channel/opencode/...`；`bun x vitest run src/features/channels`。
+
+---
+
+## 3. 改动文件清单（117 业务文件）
 
 ### 3.1 按层统计（实测）
 
 | 层 | 新增 | 修改 | 小计 |
 |---|---|---|---|
-| 前端 `web/src/` | 19 | 51 | **70** |
-| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`/`i18n`） | 12 | 31 | **43** |
+| 前端 `web/src/` | 19 | 54 | **73** |
+| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`/`i18n`） | 15 | 36 | **51** |
 | 其它（根目录文档、VERSION、workflow） | 3 | 4 | 7 |
-| **合计** | **34** | **86** | **120** |
+| **合计** | **37** | **94** | **131** |
 
-其中**业务**文件 116 个（31 新增 + 85 修改），**非业务** 5 个（见 §0）。
+其中**业务**文件 127 个（34 新增 + 93 修改），**非业务** 4 个（见 §0）。
 
-Go 文件按目录细分的修改数：`controller` 8、`model` 6、`service` 3、`router` 3、`setting` 3、`relay` 3、`i18n` 2、`relaykit` 2、`common` 1。
+Go 文件按目录细分的修改数：`controller` 9、`model` 6、`service` 3、`router` 3、`setting` 3、`relay` 4、`constant` 2、`common` 2、`i18n` 2、`relaykit` 2。
 前端修改数 Top：`web/src/features/**`、`web/src/i18n`、`web/src/lib`、`web/src/context`、`web/src/components`。
 
-### 3.2 新增文件（31 个业务文件）
+### 3.2 新增文件（34 个业务文件）
 
 ```
 common/error_rule.go
@@ -224,6 +252,9 @@ model/affiliate_reward.go
 model/affiliate_reward_test.go
 relay/channel/gemini/pseudo_200_test.go
 relay/channel/openai/pseudo_200_test.go
+relay/channel/opencode/adaptor.go
+relay/channel/opencode/adaptor_test.go
+relay/channel/opencode/constants.go
 relaykit/types/error_test.go
 service/error_sanitizer.go
 service/error_sanitizer_test.go
@@ -240,7 +271,7 @@ web/src/lib/image-compress.ts
 web/src/routes/landing-v2.tsx
 ```
 
-（另 5 个非业务新增文件：`.github/workflows/docker-image.yml`、`UPGRADE_GUIDE.md`、`README_CN.md`、`VERSION`，以及后来删除的 `PORTING_GUIDE.md`）
+（另 3 个非业务**新增**文件：`.github/workflows/docker-image.yml`、`UPGRADE_GUIDE.md`、`README_CN.md`；`VERSION` 为修改，GitHub 侧原有的 `PORTING_GUIDE.md` 已删除）
 
 ### 3.3 新增配置键总表
 
@@ -255,6 +286,8 @@ web/src/routes/landing-v2.tsx
 
 **`channels.setting`（JSON，渠道级）**：
 `pseudo_200_enabled`、`pseudo_200_custom_keywords`、`pseudo_200_rules`
+
+**`channels.type` 新取值**：`64`（OpenCode，见 B12）—— 复用既有列，**不新增任何配置键**。
 
 **新增表**：`affiliate_rewards`（唯一）
 
@@ -292,7 +325,9 @@ git rebase upstream/main            # 或指定目标提交
 | `model/topup.go` | 官方改充值链路 | 保留上游，重新加 6 处 `processTopUpAffiliateRewardTx` 与 0 额度守卫 |
 | `web/src/i18n/locales/*.json` | 官方持续加键 | 保留上游，重新追加本仓库新增键（7 语言**同步**）。**注意**：新键必须加在 `"translation"` **对象内部**，加在根对象会导致 i18next 回退显示英文 key（见 §1 约束三与 PORTING_NOTES 1.0.1） |
 | `model/main.go` | AutoMigrate 列表 | 保留上游，重新加 `&AffiliateReward{}` |
-| `controller/channel.go` + `router/channel-router.go` | 官方持续新增接口 | 保留上游，重新加 `GetChannelDefaultPseudo200Rules` 与其路由项（`authz.ChannelRead`） |
+| `controller/channel.go` + `router/channel-router.go` | 官方持续新增接口 | 保留上游，重新加 `GetChannelDefaultPseudo200Rules` 与其路由项（`authz.ChannelRead`），以及 `buildFetchModelsHeaders` 的 OpenCode 分支 |
+| `constant/channel.go` + `constant/api_type.go` + `common/api_type.go` | 官方持续新增渠道类型 | 保留上游，重新加 `ChannelTypeOpenCode = 64`（**必须插在 `ChannelTypeDummy` 之前**）、`ChannelBaseURLs[64]`、`ChannelTypeNames[64]`、`APITypeOpenCode` 与 `ChannelType2APIType` 分支 |
+| `web/src/features/channels/constants.ts` | 官方持续新增渠道类型 | 保留上游，重新加 `CHANNEL_TYPE_OPENCODE`、`CHANNEL_TYPES[64]`、`CHANNEL_PROVIDER_PRESENTATION[64]`（**`satisfies` 约束要求两者同步**）、display order 与 3 个 Set |
 
 ### 4.3 变基后必须回归的验证
 
@@ -332,12 +367,14 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 |---|---|
 | 后端 build（显式包列表）+ vet | exit 0 |
 | `relaykit` 独立构建（`GOWORK=off`） | exit 0 |
-| Go 文件 `gofmt` | 43 文件全 clean |
+| Go 文件 `gofmt` | 全部改动 Go 文件 clean |
 | 伪 200 测试（service 11 + relay 4） | 15/15 PASS |
+| OpenCode 渠道测试 | 17/17 PASS（`go test -v ./relay/channel/opencode/...`） |
 | 前端 `typecheck` | exit 0 |
+| 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端全量 `vitest` | **170 文件 / 2132 用例**，连续 2 次全过 |
 | 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |
-| 前端 i18n | 7 语言 × 6962 键，0 缺失/多余/重复 |
+| 前端 i18n | 7 语言 × 6964 键，0 缺失/多余/重复 |
 | 后端 i18n | 3 语言 × 265 键 |
 
 ### 6.2 官方既有问题（**不要修**）

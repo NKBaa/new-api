@@ -6961,6 +6961,8 @@
     "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "このチャネルにのみ適用され、組み込みの特徴に追加されます。本文が 400 文字以下で特徴に一致した場合のみ、疑似 200 エラーと判定されます。",
     "Blocking signatures": "ブロック特徴ルール",
     "Each line is a signature, optionally followed by | and comma-separated words that must also appear.": "1 行に 1 ルール：特徴を記述し、必要なら | の後に同時に含まれる必要がある語（カンマ区切り）を追加します。",
-    "A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.": "レスポンスが特徴で始まり、本文が {{chars}} 文字以内の場合のみ疑似 200 と判定します。リストを空にすると内蔵の特徴に戻ります。"
+    "A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.": "レスポンスが特徴で始まり、本文が {{chars}} 文字以内の場合のみ疑似 200 と判定します。リストを空にすると内蔵の特徴に戻ります。",
+    "Connect to OpenCode model services with official client spoofing": "OpenCode モデルサービスに接続し、公式クライアントとして自動的に偽装します",
+    "Enter OpenCode API key (oc_sk_... or partner key)": "OpenCode API キーを入力（oc_sk_... またはパートナーキー）"
   }
 }

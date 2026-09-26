@@ -6961,6 +6961,8 @@
     "Appended to the built-in signatures for this channel only. A response is treated as a pseudo-200 error only when it stays under 400 characters and matches a signature.": "Chỉ áp dụng cho kênh này, được thêm vào các chữ ký tích hợp. Phản hồi chỉ bị coi là lỗi pseudo-200 khi dưới 400 ký tự và khớp với một chữ ký.",
     "Blocking signatures": "Chữ ký chặn",
     "Each line is a signature, optionally followed by | and comma-separated words that must also appear.": "Mỗi dòng một quy tắc: chữ ký, sau đó có thể là | và các từ cách nhau bằng dấu phẩy cũng phải xuất hiện.",
-    "A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.": "Chỉ coi là lỗi pseudo-200 khi phản hồi bắt đầu bằng một chữ ký và dưới {{chars}} ký tự. Xóa danh sách để dùng lại chữ ký tích hợp."
+    "A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.": "Chỉ coi là lỗi pseudo-200 khi phản hồi bắt đầu bằng một chữ ký và dưới {{chars}} ký tự. Xóa danh sách để dùng lại chữ ký tích hợp.",
+    "Connect to OpenCode model services with official client spoofing": "Kết nối dịch vụ mô hình OpenCode với giả lập máy khách chính thức",
+    "Enter OpenCode API key (oc_sk_... or partner key)": "Nhập khóa API OpenCode (oc_sk_... hoặc khóa đối tác)"
   }
 }

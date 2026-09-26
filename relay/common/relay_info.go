@@ -427,6 +427,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeNewAPI:         true,
 	constant.ChannelTypeVLLM:           true,
 	constant.ChannelTypeSGLang:         true,
+	constant.ChannelTypeOpenCode:       true,
 	constant.ChannelTypeTencent:        true,
 }
 
