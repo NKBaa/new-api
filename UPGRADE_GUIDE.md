@@ -11,11 +11,11 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `d7a16aec2` |
+| 当前交付提交 | `82d3d7035` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
-| 相对基线改动 | **113 文件** = 33 新增 + 80 修改 + **0 删除** |
-| 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`PORTING_GUIDE.md`(A)、`UPGRADE_GUIDE.md`(A)、`VERSION`(M) |
-| 纯业务改动 | **109 文件** = 30 新增 + 79 修改 |
+| 相对基线改动 | **120 文件** = 34 新增 + 86 修改 + **0 删除** |
+| 其中非业务文件 | 5 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`PORTING_GUIDE.md`(A，后已删除)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
+| 纯业务改动 | **116 文件** = 31 新增 + 85 修改 |
 | 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
@@ -27,10 +27,14 @@
 d04c118c8 (官方基线)
     └── …官方中间提交…
             └── f9cabe103   (GitHub 侧既有提交，含旧版实现)
-                    └── d7a16aec2   (= 本仓库 HEAD)
+                    └── d7a16aec2   (11 业务移植)
+                            └── 6238ccde4   (文档)
+                                    └── 962432cf0   (i18n 命名空间修复)
+                                            └── 4f3acda7e   (规则覆盖测试)
+                                                    └── 82d3d7035   (= 本仓库 HEAD，规则可编辑)
 ```
 
-**因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 的 120 文件改动。** 若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成：
+**因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动。** 若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成：
 
 ```bash
 # 合成一个父为 d04c118c8、树与 HEAD 相同的虚拟提交
@@ -39,7 +43,7 @@ synth=$(git commit-tree "$tree" -p d04c118c8 -m "port 11 businesses")
 git format-patch --binary --stdout -1 "$synth" > businesses.patch
 ```
 
-仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2573 文件逐字节一致**。
+仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2574 文件逐字节一致**。
 
 ---
 
@@ -143,20 +147,30 @@ AI 修改本仓库时必须同时满足：
   - **React 组件**用 `useTranslation()`；**非 React 代码**用 `import { t } from 'i18next'`。
 - **移植注意**：新增 7 语种键必须**同时**补 7 个文件，否则 i18n 一致性校验失败。
 
-### B11 · 伪 200 拦截与渠道重试（★ 设计已变更，务必按新版）
-- **文件**：`service/pseudo_error_detector.go`(新)、`service/pseudo_error_detector_test.go`(新)、`relaykit/dto/channel_settings.go`、`relay/channel/openai/relay-openai.go`、`relay/channel/gemini/relay-gemini.go`、`relay/channel/{openai,gemini}/pseudo_200_test.go`(新)、`service/channel.go`、`web/src/features/channels/**`（types / channel-form / channel-configuration / channel-mutate-drawer / 3 个测试）
-- **符号**：`IsPseudo200Error(settings dto.ChannelSettings, content string) (bool, string)`、`NewPseudo200Error(reason)`、`maxPseudo200Length = 400`、`dto.ChannelSettings.Pseudo200Enabled` / `.Pseudo200CustomKeywords`
-- **存储**：**渠道级**，写在既有的 `channels.setting` TEXT 列（JSON）里，键 `pseudo_200_enabled` / `pseudo_200_custom_keywords` —— `model/channel.go` **零改动** → **0 DDL**
+### B11 · 伪 200 拦截与渠道重试（★ 设计已变更两次，务必按新版）
+- **文件**：`service/pseudo_error_detector.go`(新)、`service/pseudo_error_detector_test.go`(新)、`relaykit/dto/channel_settings.go`、`controller/channel.go`、`router/channel-router.go`、`router/channel_router_test.go`、`relay/channel/openai/relay-openai.go`、`relay/channel/gemini/relay-gemini.go`、`relay/channel/{openai,gemini}/pseudo_200_test.go`(新)、`service/channel.go`、`web/src/features/channels/**`（types / channel-form / channel-configuration / channel-actions / api / channel-mutate-drawer / 4 个测试）
+- **符号**：`IsPseudo200Error(settings dto.ChannelSettings, content string) (bool, string)`、`NewPseudo200Error(reason)`、`GetChannelDefaultPseudo200Rules()`、`MaxPseudo200Length()`、`maxPseudo200Length = 400`、`parsePseudo200Rules` / `matchPseudo200Rules`
+- **存储**：**渠道级**，写在既有的 `channels.setting` TEXT 列（JSON）里，键 `pseudo_200_enabled` / `pseudo_200_custom_keywords` / `pseudo_200_rules` —— `model/channel.go` **零改动** → **0 DDL**
+- **接口**：`GET /api/channel/default_pseudo_200_rules`（`authz.ChannelRead`）下发 `{rules, max_chars}`，用于渠道表单开启检测时回填内置规则。
 - **⚠️ 关键设计（与历史版本不同，不要照抄旧文档）**：
   - **没有全局开关**，**没有全局规则**。历史上曾实现为 `common.Pseudo200DetectEnabled` / `Pseudo200CustomKeywords`，**已彻底删除**；若在旧分支看到这两个符号，那是废弃代码。
   - 判定**只依据本渠道自身设置**：`channel.Pseudo200Enabled == false` → 恒返回 `false, ""`。渠道之间**无任何共享状态**。
   - relay **8 处**调用点（OpenAI 4 + Gemini 4）均传入 `info.ChannelSetting`。
+  - **规则表是可编辑的，不是写死的**：13 条内置指纹现由 `GetChannelDefaultPseudo200Rules()` 渲染成行式文本供渠道编辑；`Pseudo200Rules` **非空时替换**内置表，**为空时沿用**内置表（老渠道行为不变）。
+- **规则文本格式**（`Pseudo200Rules`，每行一条）：
+  ```
+  the prompt could not be submitted
+  the prompt contains sensitive words | violat, blocked, prohibited
+  ```
+  `|` 之前是**首部锚定**前缀，之后是**共现特征**（逗号分隔，OR 语义）。空行与 `#` 开头的行忽略。
+- **日志标识**：命中时 `reason` **即该条规则的 `prefix`**（不再单独维护描述文案）。因此「留空用内置」与「回填后保存」两条路径的判定与日志**完全一致**。
 - **检测算法（低误判是核心）**：
   1. 渠道开关关闭 → 直接放行；
   2. 正文 `len(TrimSpace) > 400` → 放行（真拦截是短句，长文是正常产出）；
-  3. **首部锚定 + 特征共现**：先 `stripLeadingNoise` 剥离 `error:` / `failed:` 等 7 种噪声前缀，再要求正文**以阻断句式开头**（如 `the prompt could not be submitted`、`this request violates`、`the prompt contains sensitive words`），`requires` 采用 **OR 语义**；
+  3. **首部锚定 + 特征共现**：先 `stripLeadingNoise` 剥离噪声前缀（`error:` / `failed:` / `google api error:` 等 **8 种**），再要求正文**以某条规则的前缀开头**；配置了 `requires` 时要求其中**任一**出现；
   4. 渠道自定义特征按换行/逗号（含中文逗号）拆分，任一**包含**即命中，同样受 400 字符上限约束。
-- **效果（实测）**：14 条正常内容（解释政策、翻译提示、复述报错、代码字符串、越狱原理讨论…）**全部不误判**；4 条真实上游报错**全部命中**。
+- **⚠️ 编辑规则时绝不可退化为「简单包含匹配」**：内置规则的 `prefix` 必须**锚定在正文开头**。实测把 13 条前缀当普通关键词做包含匹配，会让 4/4 条正常内容（引用报错、复述政策、解释拦截）**全部误判**。解析与匹配必须走 `parsePseudo200Rules` / `matchPseudo200Rules`。
+- **效果（实测）**：正常内容（解释政策、翻译提示、复述报错、代码字符串、越狱原理讨论…）**全部不误判**；真实上游报错**全部命中**。
 - **命中后行为**：`NewPseudo200Error` 返回 502 + `ErrorCodePromptBlocked` → 触发换渠道重试 → 重试耗尽则退款。**不扣额度、不封渠道**。
 - **防误封（显式，非巧合）**：`service/channel.go` 的 `ShouldDisableChannel` **首行**短路：
   ```go
@@ -165,32 +179,35 @@ AI 修改本仓库时必须同时满足：
   }
   ```
   这一行不可删。删掉后会退化为依赖三个巧合（错误码无 `channel:` 前缀、502 不在禁用区间、文案不含 `AutomaticDisableKeywords`），任一变动就会误封健康渠道。
-- **前端 UI**：渠道编辑抽屉 →「**请求与响应**」(Request & Response) 标签 → Request processing 卡片内，一个渠道级开关 + **仅开关打开时出现**的特征 `Textarea`。
+- **前端 UI**：渠道编辑抽屉 →「**请求与响应**」(Request & Response) 标签 → Request processing 卡片内：一个渠道级开关；开关打开后出现**可编辑规则 `Textarea`**（首次开启自动回填内置规则）与「**恢复默认**」按钮，其下另有「追加特征」`Textarea`。
+  - 「恢复默认」复用既有 i18n 键 `Restore defaults`，未新增词条。
+  - 清空规则框 = 回退内置表（与后端 `Pseudo200Rules == ""` 语义一致）。
 - **移植注意（易错点，均已踩过）**：
   1. `channel-configuration.ts` 的 `configured.requestProcessing` **必须**包含 `values.pseudo_200_enabled`，否则开关打开后卡片不显示「Configured」徽标；
-  2. `channel-mutate-drawer.tsx` 的 `SENSITIVE_FORM_FIELDS` **必须**登记两个新字段，与同组官方字段权限行为一致；
-  3. `channel-form.ts` 需 5 处改动：zod schema、2 处默认值、`transformChannelToFormDefaults` 解析、`buildSettingJSON` 序列化；
-  4. `channel-form-errors.ts` 的 `ADVANCED_SETTINGS_FIELDS` **故意未登记** —— 该名单仅驱动 `isAdvancedSettingsField`/`hasAdvancedSettingsErrors`，二者在仓库中**除自身外无调用方**，且新字段为可选类型不会产生校验错误，属"不修改非业务代码"。
+  2. `channel-mutate-drawer.tsx` 的 `SENSITIVE_FORM_FIELDS` **必须**登记**三个**新字段（enabled / custom_keywords / rules），与同组官方字段权限行为一致；
+  3. `channel-form.ts` 需 **6 处**改动：zod schema、2 处默认值、`transformChannelToFormDefaults` 解析、`buildSettingJSON` 序列化（+ `channel-configuration.ts` 的 fields 名单、`channel-actions.ts` 的 query key）；
+  4. `channel-form-errors.ts` 的 `ADVANCED_SETTINGS_FIELDS` **故意未登记** —— 该名单仅驱动 `isAdvancedSettingsField`/`hasAdvancedSettingsErrors`，二者在仓库中**除自身外无调用方**，且新字段为可选类型不会产生校验错误，属"不修改非业务代码"；
+  5. 新增规则框的 i18n 键只有 3 个（`Blocking signatures`、格式占位符、长度与回退说明），**7 个语种都要补**，否则一致性校验失败。
 
 ---
 
-## 3. 改动文件清单（109 业务文件）
+## 3. 改动文件清单（116 业务文件）
 
 ### 3.1 按层统计（实测）
 
 | 层 | 新增 | 修改 | 小计 |
 |---|---|---|---|
-| 前端 `web/src/` | 18 | 49 | **67** |
-| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`/`i18n`） | 12 | 27 | **39** |
+| 前端 `web/src/` | 19 | 51 | **70** |
+| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`/`i18n`） | 12 | 31 | **43** |
 | 其它（根目录文档、VERSION、workflow） | 3 | 4 | 7 |
-| **合计** | **33** | **80** | **113** |
+| **合计** | **34** | **86** | **120** |
 
-其中**业务**文件 109 个（30 新增 + 79 修改），**非业务** 4 个（见 §0）。
+其中**业务**文件 116 个（31 新增 + 85 修改），**非业务** 5 个（见 §0）。
 
-Go 文件按目录细分的修改数：`model` 6、`controller` 6、`i18n` 5、`service` 3、`setting` 3、`relay` 3、`relaykit` 2、`common` 1、`router` 1。
-前端修改数 Top：`web/src/features/**` 31、`web/src/i18n` 8、`web/src/lib` 3、`web/src/context` 2、`web/src/components` 2。
+Go 文件按目录细分的修改数：`controller` 8、`model` 6、`service` 3、`router` 3、`setting` 3、`relay` 3、`i18n` 2、`relaykit` 2、`common` 1。
+前端修改数 Top：`web/src/features/**`、`web/src/i18n`、`web/src/lib`、`web/src/context`、`web/src/components`。
 
-### 3.2 新增文件（29 个业务文件）
+### 3.2 新增文件（31 个业务文件）
 
 ```
 common/error_rule.go
@@ -205,6 +222,7 @@ service/error_sanitizer.go
 service/error_sanitizer_test.go
 service/pseudo_error_detector.go
 service/pseudo_error_detector_test.go
+web/src/features/channels/components/__tests__/pseudo-200-i18n.test.tsx
 web/src/features/channels/lib/__tests__/pseudo-200-configuration.test.ts
 web/src/features/landing-v2/**                      (11 文件)
 web/src/features/profile/__tests__/checkin-topup-gate.test.tsx
@@ -215,7 +233,7 @@ web/src/lib/image-compress.ts
 web/src/routes/landing-v2.tsx
 ```
 
-（另 4 个非业务新增文件：`.github/workflows/docker-image.yml`、`PORTING_GUIDE.md`、`UPGRADE_GUIDE.md`、`VERSION`）
+（另 5 个非业务新增文件：`.github/workflows/docker-image.yml`、`UPGRADE_GUIDE.md`、`README_CN.md`、`VERSION`，以及后来删除的 `PORTING_GUIDE.md`）
 
 ### 3.3 新增配置键总表
 
@@ -229,7 +247,7 @@ web/src/routes/landing-v2.tsx
 `require_topup`、`block_automated_ua`、`max_checkin_per_ip`
 
 **`channels.setting`（JSON，渠道级）**：
-`pseudo_200_enabled`、`pseudo_200_custom_keywords`
+`pseudo_200_enabled`、`pseudo_200_custom_keywords`、`pseudo_200_rules`
 
 **新增表**：`affiliate_rewards`（唯一）
 
@@ -341,11 +359,14 @@ git diff d04c118c8..HEAD | grep -E 'os/exec|exec\.Command|subprocess'           
 grep -rn 'Pseudo200DetectEnabled' --include=*.go --include=*.ts --include=*.tsx .   # 应无输出
 grep -c 'IsPseudo200Error(info.ChannelSetting' relay/channel/openai/relay-openai.go relay/channel/gemini/relay-gemini.go  # 4 + 4
 
+# 规则表可编辑：内置表必须能渲染成文本并原样解析回来
+go test ./service/ -run 'TestGetChannelDefaultPseudo200RulesRoundTrip'
+
 # 防误封短路仍在
 grep -A2 'func ShouldDisableChannel' service/channel.go | grep ErrorCodePromptBlocked
 
 # 改动规模
-git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=33 M=80 D=0
+git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=34 M=86 D=0
 ```
 
 ---
