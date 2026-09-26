@@ -48,7 +48,7 @@ synth=$(git commit-tree "$tree" -p d04c118c8 -m "port 11 businesses")
 git format-patch --binary --stdout -1 "$synth" > businesses.patch
 ```
 
-仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2574 文件逐字节一致**。
+仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2577 文件逐字节一致**。
 
 ---
 
@@ -306,7 +306,7 @@ git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，结果与交付仓库 **2574 文件逐字节一致**。
+**已验证**：该补丁可干净应用，结果与交付仓库 **2577 文件逐字节一致**（131 文件改动，含新增的 `relay/channel/opencode/` 包）。
 > `git apply` 可能提示 5 行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
 ### 4.2 方式 B：变基到更新的官方版本
@@ -370,11 +370,11 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 后端 build（显式包列表）+ vet | exit 0 |
 | `relaykit` 独立构建（`GOWORK=off`） | exit 0 |
 | Go 文件 `gofmt` | 全部改动 Go 文件 clean |
-| 伪 200 测试（service 11 + relay 4） | 15/15 PASS |
+| 伪 200 测试（service 12 + relay 4） | 16/16 PASS |
 | OpenCode 渠道测试 | 17/17 PASS（`go test -v ./relay/channel/opencode/...`） |
 | 前端 `typecheck` | exit 0 |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
-| 前端全量 `vitest` | **170 文件 / 2132 用例**，连续 2 次全过 |
+| 前端全量 `vitest` | **170 文件 / 2136 用例**，连续 2 次全过 |
 | 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |
 | 前端 i18n | 7 语言 × 6964 键，0 缺失/多余/重复 |
 | 后端 i18n | 3 语言 × 265 键 |
