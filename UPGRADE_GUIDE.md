@@ -140,7 +140,7 @@ AI 修改本仓库时必须同时满足：
 
 ### B10 · 全链路 i18n
 - **文件**：`i18n/i18n.go`、`i18n/keys.go`、`i18n/locales/{en,zh-CN,zh-TW}.yaml`、`web/src/i18n/locales/{en,zh,zh-TW,ja,fr,ru,vi}.json`、`setting/console_setting/validation.go`
-- **规模**：后端 3 语言 × 265 键（其中 24 个 `sanitize.*` 为本次新增）；前端 7 语言 × **6960 键，0 缺失/0 多余/0 重复**
+- **规模**：后端 3 语言 × 265 键（其中 24 个 `sanitize.*` 为本次新增）；前端 7 语言 × **6962 键，0 缺失/0 多余/0 重复**
 - **约定**：
   - 后端库 `nicksnyder/go-i18n/v2`，语言 en / zh-CN / zh-TW；
   - 前端 `i18next`，key **就是英文源串**（flat JSON）；
@@ -264,7 +264,7 @@ git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，结果与交付仓库 **2573 文件逐字节一致**。
+**已验证**：该补丁可干净应用，结果与交付仓库 **2574 文件逐字节一致**。
 > `git apply` 可能提示 5 行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
 ### 4.2 方式 B：变基到更新的官方版本
@@ -280,11 +280,12 @@ git rebase upstream/main            # 或指定目标提交
 | 文件 | 冲突原因 | 处理 |
 |---|---|---|
 | `relay/channel/{openai,gemini}/relay-*.go` | 上游频繁改动响应处理 | 保留上游逻辑，**只重新插入 8 处 `service.IsPseudo200Error(info.ChannelSetting, …)` 调用** |
-| `web/src/features/channels/components/drawers/channel-mutate-drawer.tsx` | 官方 5000+ 行高频变更 | 保留上游，重新插入 `pseudo200Fields` 与 `SENSITIVE_FORM_FIELDS` 两处 |
+| `web/src/features/channels/components/drawers/channel-mutate-drawer.tsx` | 官方 5000+ 行高频变更 | 保留上游，重新插入 `pseudo200Fields`（规则框 + 恢复默认 + 自动回填）与 `SENSITIVE_FORM_FIELDS` 的 **3 个**键 |
 | `model/option.go` | 官方持续新增 option | 保留上游，重新加 6 个 `OptionMap[...]` 与对应 `case` 分支 |
 | `model/topup.go` | 官方改充值链路 | 保留上游，重新加 6 处 `processTopUpAffiliateRewardTx` 与 0 额度守卫 |
-| `web/src/i18n/locales/*.json` | 官方持续加键 | 保留上游，重新追加本仓库新增键（7 语言**同步**） |
+| `web/src/i18n/locales/*.json` | 官方持续加键 | 保留上游，重新追加本仓库新增键（7 语言**同步**）。**注意**：新键必须加在 `"translation"` **对象内部**，加在根对象会导致 i18next 回退显示英文 key（见 §1 约束三与 PORTING_NOTES 1.0.1） |
 | `model/main.go` | AutoMigrate 列表 | 保留上游，重新加 `&AffiliateReward{}` |
+| `controller/channel.go` + `router/channel-router.go` | 官方持续新增接口 | 保留上游，重新加 `GetChannelDefaultPseudo200Rules` 与其路由项（`authz.ChannelRead`） |
 
 ### 4.3 变基后必须回归的验证
 
@@ -324,19 +325,19 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 |---|---|
 | 后端 build（显式包列表）+ vet | exit 0 |
 | `relaykit` 独立构建（`GOWORK=off`） | exit 0 |
-| Go 文件 `gofmt` | 38 文件全 clean |
-| 伪 200 测试（service 5 + relay 4） | 9/9 PASS |
+| Go 文件 `gofmt` | 43 文件全 clean |
+| 伪 200 测试（service 10 + relay 4） | 14/14 PASS |
 | 前端 `typecheck` | exit 0 |
-| 前端全量 `vitest` | **169 文件 / 2126 用例**，连续 2 次全过 |
+| 前端全量 `vitest` | **170 文件 / 2132 用例**，连续 2 次全过 |
 | 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |
-| 前端 i18n | 7 语言 × 6960 键，0 缺失/多余/重复 |
+| 前端 i18n | 7 语言 × 6962 键，0 缺失/多余/重复 |
 | 后端 i18n | 3 语言 × 265 键 |
 
 ### 6.2 官方既有问题（**不要修**）
 
-1. `service/TestObserveChannelAffinityUsageCacheByRelayFormat_*` —— 官方基线同样失败。
+1. `service/TestObserveChannelAffinityUsageCacheByRelayFormat_*` —— 官方基线同样失败（已用 stash 还原官方状态复现）。
 2. `relay/channel/TestUpstreamGetBody_HTTP2RetryAfterGracefulGoAway_PassThrough` —— **偶发**（官方基线连跑 6 次失败 1 次），HTTP/2 时序竞争。
-3. `controller/` 的 `TestModelManagementDatabaseMatrix/sqlite`、`TestOptionLogoValidation`、`TestGetStatusCustomerService` —— Windows `TempDir RemoveAll` 文件句柄占用。
+3. Windows `TempDir RemoveAll` 文件句柄占用（**非断言失败**，`testing.go:1464 cleanup` 报 `being used by another process`）：`controller/` 的 `TestModelManagementDatabaseMatrix/sqlite`、`TestAuditDatabaseMatrix/sqlite/*`、`TestSecurityLoginCodeCompletesOnce`、`TestOptionLogoValidation`、`TestGetStatusCustomerService`。Linux/CI 不受影响。
 4. `bun run lint` 基线 66 warn / 182 err（多在 `scripts/sync-i18n.mjs`）。
 5. 前端全量偶发 1 例 jsdom 时序抖动（`model-mapping-editor` / `marketplace-install-dialog`），单跑 3~5 次必过。
 
