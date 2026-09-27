@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `de125fff9`（= GitHub `main` HEAD） |
+| 当前交付提交 | `d1ef7cc56`（= GitHub `main` HEAD） |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **135 文件** = 40 新增 + 95 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -109,9 +109,9 @@ AI 修改本仓库时必须同时满足：
 - **移植注意**：这是本仓库**唯一**触碰主题体系的地方，且限定在「默认值下发 + 用户独立存储」，**没有**修改 `styles/` 或底层 UI 组件。
 
 ### B5 · OpenRouter 风格极简首页（Landing V2）
-- **文件**：`web/src/features/landing-v2/**`（11 文件，全新）、`web/src/routes/landing-v2.tsx`(新)、主路由单行切换
+- **文件**：`web/src/features/landing-v2/**`（11 文件，全新）、`web/src/routes/landing-v2.tsx`(新)、`web/src/routes/index.tsx`（**2 行：import 与 component 各 1 行**）
 - **符号**：`features/landing-v2/index.tsx`、`use-landing-data.ts`
-- **移植注意**：官方 `features/home/` **零改动**，是物理隔离的并行实现；路由切换只改 1 行，冲突风险极低。
+- **⚠️ 根路由 `/` 已被改为指向 LandingV2**（`index.tsx` 的 `component: Home` → `component: LandingV2`）。官方 `features/home/` 目录**零改动**、代码完整保留，`/landing-v2` 路由也单独存在；但**没有任何 UI 开关**可以切回官方首页 —— 要回退只能改回 `routes/index.tsx` 那 1 行。移植时若只想并存不顶替，就**不要**应用这 1 行改动。
 
 ### B6 · 防黑产/防自动化（Anti-Abuse）
 - **文件**：`controller/checkin.go`、`controller/checkin_antiabuse_test.go`(新)、`common/constants.go`、`setting/operation_setting/checkin_setting.go`、`model/option.go`、`web/src/features/profile/**`
@@ -399,6 +399,9 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 12 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，约 25 分钟）。
+  - **⚠️ `latest` 当前对应 `adaba2781`**（最后一次触发构建的代码提交），**不是** HEAD `d1ef7cc56`。原因：之后的 4 个提交只改 `*.md`，而 `paths` 过滤器不含 `*.md`，故不触发构建 —— **这是期望行为**。已逐字节验证 `adaba2781..HEAD` 之间 **2073 个运行时文件全部一致**，差异仅为 `README_CN.md` / `UPGRADE_GUIDE.md` / 一个 `_test.go`。因此**该镜像就是当前 HEAD 的可运行产物**，可直接上线。
+  - **镜像公开性**：已实测**匿名可拉**（无需 `docker login`）。
+  - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 12 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
 
 ---
 
