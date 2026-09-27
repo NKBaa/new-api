@@ -376,6 +376,8 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 - **端口/环境**：沿用官方；本仓库未新增必需环境变量。
 - **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（`v1.0.0-rc.40`）。**不要清空**。
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
+  - **MySQL 已实测**：已在真实 MySQL 生产库上部署运行，功能正常（见 §6.3）。
+  - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，约 25 分钟）。
 
 ---
@@ -409,7 +411,11 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 
 ### 6.3 未验证项（如实声明）
 
-- **MySQL / PostgreSQL 未实测**：仅有 SQLite 环境。本次新增表用标准 GORM，未用方言特性，但**没有**三方言实测证据。
+- ~~**MySQL / PostgreSQL 未实测**~~ → **MySQL 已实测通过**：已在真实 MySQL 生产库上部署运行，
+  建表（`affiliate_rewards`）、升级、12 项业务功能均正常，无报错。
+  - **PostgreSQL 仍未实测**：无 PG 环境。本次未引入 PG 特有写法，但**没有** PG 实测证据。
+  - 代码侧依据：`affiliate_rewards` 用标准 GORM 定义（`varchar(160)` + `uniqueIndex`），
+    未使用方言特有类型、函数或 `ALTER COLUMN`；并发幂等靠 `uniqueIndex` 兜底，三种方言语义一致。
 - **`-race` 不可用**：`go: -race requires cgo`。并发幂等性通过行为测试证明（16 goroutine → 1 成功 / 15 拒绝 / 1 条流水 / 额度只入账一次）。
 - **真实浏览器 + 真实后端未跑**：前端验证止于 DOM 行为与提交 payload 层。
 
