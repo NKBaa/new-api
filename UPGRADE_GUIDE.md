@@ -11,11 +11,11 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `894724c8f` |
+| 当前交付提交 | `017371d19` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
-| 相对基线改动 | **131 文件** = 37 新增 + 94 修改 + **0 删除** |
+| 相对基线改动 | **135 文件** = 40 新增 + 95 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
-| 纯业务改动 | **127 文件** = 34 新增 + 93 修改 |
+| 纯业务改动 | **131 文件** = 37 新增 + 94 修改 |
 | 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
@@ -36,7 +36,9 @@ d04c118c8 (官方基线)
                                                                     └── 0edf27455   (文档同步)
                                                                             └── cb668037e   (分隔符容错)
                                                                                     └── 87bf361e1   (文档)
-                                                                                            └── 894724c8f   (= 本仓库 HEAD，OpenCode 渠道)
+                                                                                            └── 894724c8f   (OpenCode 渠道初版)
+                                                                                                    └── …指纹伪装与分发修复…
+                                                                                                            └── 017371d19   (= 本仓库 HEAD，OpenCode 官方指纹)
 ```
 
 **因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动。** 若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成：
@@ -48,7 +50,7 @@ synth=$(git commit-tree "$tree" -p d04c118c8 -m "port 11 businesses")
 git format-patch --binary --stdout -1 "$synth" > businesses.patch
 ```
 
-仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2577 文件逐字节一致**。
+仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2580 文件逐字节一致**。
 
 ---
 
@@ -254,16 +256,16 @@ AI 修改本仓库时必须同时满足：
 | 层 | 新增 | 修改 | 小计 |
 |---|---|---|---|
 | 前端 `web/src/` | 19 | 54 | **73** |
-| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`/`i18n`） | 15 | 36 | **51** |
-| 其它（根目录文档、VERSION、workflow） | 3 | 4 | 7 |
-| **合计** | **37** | **94** | **131** |
+| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`/`i18n`） | 18 | 40 | **58** |
+| 其它（根目录文档、VERSION、workflow） | 3 | 1 | **4** |
+| **合计** | **40** | **95** | **135** |
 
-其中**业务**文件 127 个（34 新增 + 93 修改），**非业务** 4 个（见 §0）。
+其中**业务**文件 131 个（37 新增 + 94 修改），**非业务** 4 个（见 §0）。
 
 Go 文件按目录细分的修改数：`controller` 9、`model` 6、`service` 3、`router` 3、`setting` 3、`relay` 4、`constant` 2、`common` 2、`i18n` 2、`relaykit` 2。
 前端修改数 Top：`web/src/features/**`、`web/src/i18n`、`web/src/lib`、`web/src/context`、`web/src/components`。
 
-### 3.2 新增文件（34 个业务文件）
+### 3.2 新增文件（37 个业务文件）
 
 ```
 common/error_rule.go
@@ -275,7 +277,10 @@ relay/channel/gemini/pseudo_200_test.go
 relay/channel/openai/pseudo_200_test.go
 relay/channel/opencode/adaptor.go
 relay/channel/opencode/adaptor_test.go
+relay/channel/opencode/agent_shape_test.go
 relay/channel/opencode/constants.go
+relay/channel/opencode/default_model_test.go
+relay/channel/opencode/dispatch_test.go
 relaykit/types/error_test.go
 service/error_sanitizer.go
 service/error_sanitizer_test.go
@@ -325,7 +330,7 @@ git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，结果与交付仓库 **2577 文件逐字节一致**（131 文件改动，含新增的 `relay/channel/opencode/` 包）。
+**已验证**：该补丁可干净应用，结果与交付仓库 **2580 文件逐字节一致**（135 文件改动，含新增的 `relay/channel/opencode/` 包）。
 > `git apply` 可能提示 5 行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
 ### 4.2 方式 B：变基到更新的官方版本
