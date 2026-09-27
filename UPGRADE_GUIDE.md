@@ -432,7 +432,10 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，实测约 16~19 分钟）。
   - **✅ 当前 `latest` 已是最新交付代码**：对应提交 `af7b2a3af`（构建 run `36330275827`，success，16 分 26 秒）。摘要 `sha256:0af83356890efc2f5c5fdbf83ccfac9623aa82a40c89aaa11ad5ced3c5ef2869`，与标签 `sha-af7b2a3af987ed6080e50213fdc3dca4fbb0938e` **完全一致**（上一版 `sha-88d694850…` 为 `sha256:54d1f0d27edd6950…`，已确认被替换）。**首页风格开关与下拉框宽度修复都在里面。**
   - **验证方法（可复现）**：`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪。
-  - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。因此只改文档的提交（如 `88d694850`、`0d87a54ea`）**不会**触发构建，属**期望行为**；改了 `*.go`/`web/**` 的提交（如 `af7b2a3af`）**会**触发。
+  - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
+    - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
+    - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
+    - 相关实例：`af7b2a3af`（宽度修复，改代码）→ run `36330275827` success。
   - **镜像公开性**：已实测**匿名可拉**（无需 `docker login`）。
   - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 12 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
 
