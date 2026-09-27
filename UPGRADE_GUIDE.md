@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `66488a6fe`（= GitHub `main` HEAD）+ 本地未提交的「首页风格开关」改动 |
+| 当前交付提交 | 本仓库最新一次提交（`git log -1`）：「首页风格开关」+ 本次文档同步 |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **141 文件** = 42 新增 + 99 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -38,8 +38,8 @@ d04c118c8 (官方基线)
                                                                                     └── 87bf361e1   (文档)
                                                                                             └── 894724c8f   (OpenCode 渠道)
                                                                                                     └── …(OpenCode 指纹修复 ×5 / 测试 / 文档 ×6)…
-                                                                                                            └── 66488a6fe   (= 当前 GitHub main HEAD)
-                                                                                                                    └── (未提交) 首页风格开关
+                                                                                                            └── 66488a6fe   (文档)
+                                                                                                                    └── 309b9b4f6   (首页风格开关，= 当前 HEAD)
 ```
 
 **因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动。** 若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成：
@@ -51,7 +51,7 @@ synth=$(git commit-tree "$tree" -p d04c118c8 -m "port 11 businesses")
 git format-patch --binary --stdout -1 "$synth" > businesses.patch
 ```
 
-仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2580 文件逐字节一致**。
+仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2582 文件逐字节一致**。
 
 ---
 
@@ -359,7 +359,7 @@ git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，结果与交付仓库 **2580 文件逐字节一致**（141 文件改动，含新增的 `relay/channel/opencode/` 包）。
+**已验证**：该补丁可干净应用，结果与交付仓库 **2582 文件逐字节一致**（141 文件改动，含新增的 `relay/channel/opencode/` 包）。
 > `git apply` 可能提示 5 行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
 ### 4.2 方式 B：变基到更新的官方版本
@@ -397,7 +397,7 @@ cd relaykit && GOWORK=off go build ./... && cd ..
 go test ./service/ -run "Pseudo200|Sanitiz|ErrorMapping"
 go test ./relay/channel/openai/ ./relay/channel/gemini/ -run Pseudo200
 go test ./model/ -run "Affiliate|TopUp"
-go test ./controller/ -run "Checkin|CustomerService"
+go test ./controller/ -run "Checkin|CustomerService|HomePageStyle"
 
 # 3. 前端
 cd web && bun run typecheck && bun x vitest run --pool=threads
@@ -415,8 +415,8 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 12 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，约 25 分钟）。
-  - **⚠️ `latest` 当前对应 `adaba2781`**（最后一次触发构建的代码提交），**不是** HEAD `66488a6fe`。原因：之后的提交只改 `*.md`（外加一个 `_test.go`，也在 `paths` 过滤之外），而 `paths` 过滤器不含 `*.md`，故不触发构建 —— **这是期望行为**。已逐字节验证 `adaba2781..66488a6fe` 之间 **2073 个运行时文件全部一致**，差异仅为 `README_CN.md` / `UPGRADE_GUIDE.md` / 一个 `_test.go`。因此对 `66488a6fe` 而言，**该镜像就是它的可运行产物**。
-  - **⚠️ 但「首页风格开关」改动尚未进入任何镜像**：它改了 `*.go` 与 `web/src/**`，属于**会**触发构建的路径。**推送到 `main` 后必须等 GitHub Actions 跑完（约 25 分钟）镜像才包含该功能。** 在那之前 `latest` 里的根路由仍是旧的「直接顶替官方首页」行为，且 `/api/status` 没有 `home_page_style` 字段（前端会按 `classic` 兜底，但那是新前端才有的逻辑）。
+  - **⚠️ 切换前 `latest` 对应 `adaba2781`**（最后一次触发构建的代码提交）。当时 `adaba2781..66488a6fe` 之间只改 `*.md`（外加一个 `_test.go`，也在 `paths` 过滤之外），`paths` 过滤器不含 `*.md` 故不触发构建 —— **属期望行为**；已逐字节验证那 2073 个运行时文件全部一致。
+  - **⚠️ 「首页风格开关」改动尚未进入任何镜像**：它改了 `*.go` 与 `web/src/**`，属于**会**触发构建的路径。**推送到 `main` 后必须等 GitHub Actions 跑完（约 25 分钟）镜像才包含该功能。** 在那之前 `latest` 里的根路由仍是旧的「直接顶替官方首页」行为，且 `/api/status` 没有 `home_page_style` 字段。验证方法：`docker run --rm ghcr.io/nkbaa/new-api:latest` 起来后 `curl /api/status | grep home_page_style`，有输出才说明新镜像已就绪。
   - **镜像公开性**：已实测**匿名可拉**（无需 `docker login`）。
   - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 12 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
 
@@ -435,7 +435,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | OpenCode 渠道测试 | 51/51 PASS（`go test -v ./relay/channel/opencode/...`） |
 | 前端 `typecheck` | exit 0 |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
-| 前端全量 `vitest` | **170 文件 / 2136 用例**，连续 2 次全过 |
+| 前端全量 `vitest` | **172 文件 / 2147 用例**全过（开关改动前为 170 文件 / 2136 用例，连续 2 次全过；本次新增 11 例） |
 | 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |
 | 前端 i18n | 7 语言 × 6969 键，0 缺失/多余/重复 |
 | 后端 i18n | 3 语言 × 265 键 |
