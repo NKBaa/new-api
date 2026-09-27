@@ -46,6 +46,7 @@ const STATUS_RELATED_KEYS = new Set([
   'passkey.legacy_rp_ids',
   'passkey.origins',
   'DefaultThemeSettings',
+  'HomePageStyle',
   'AffiliateDescription',
   'console_setting.customer_service',
   'console_setting.customer_service_enabled',

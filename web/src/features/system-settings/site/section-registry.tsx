@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { normalizeHomePageStyle } from '@/lib/status-query'
+
 import { SystemInfoSection } from '../general/system-info-section'
 import {
   parseHeaderNavModules,
@@ -41,6 +43,7 @@ const SITE_SECTIONS = [
           Footer: settings.Footer,
           About: settings.About,
           HomePageContent: settings.HomePageContent,
+          HomePageStyle: normalizeHomePageStyle(settings.HomePageStyle),
           ServerAddress: settings.ServerAddress,
           TaskPublicAddress: settings.TaskPublicAddress,
           general_setting: {

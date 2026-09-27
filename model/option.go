@@ -81,6 +81,7 @@ func InitOptionMap() {
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
+	common.OptionMap["HomePageStyle"] = "classic"
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo
@@ -314,6 +315,9 @@ func validateOptionValue(key string, value string) error {
 				return fmt.Errorf("Logo 格式不合法")
 			}
 		}
+	}
+	if key == "HomePageStyle" && value != "classic" && value != "landing-v2" {
+		return fmt.Errorf("首页风格只能是 classic 或 landing-v2")
 	}
 	return nil
 }

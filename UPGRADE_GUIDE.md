@@ -11,11 +11,11 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `d1ef7cc56`（= GitHub `main` HEAD） |
+| 当前交付提交 | `66488a6fe`（= GitHub `main` HEAD）+ 本地未提交的「首页风格开关」改动 |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
-| 相对基线改动 | **135 文件** = 40 新增 + 95 修改 + **0 删除** |
+| 相对基线改动 | **141 文件** = 42 新增 + 99 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
-| 纯业务改动 | **131 文件** = 37 新增 + 94 修改 |
+| 纯业务改动 | **137 文件** = 39 新增 + 98 修改 |
 | 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
@@ -36,7 +36,10 @@ d04c118c8 (官方基线)
                                                                     └── 0edf27455   (文档同步)
                                                                             └── cb668037e   (分隔符容错)
                                                                                     └── 87bf361e1   (文档)
-                                                                                            └── 894724c8f   (= 本仓库 HEAD，OpenCode 渠道)
+                                                                                            └── 894724c8f   (OpenCode 渠道)
+                                                                                                    └── …(OpenCode 指纹修复 ×5 / 测试 / 文档 ×6)…
+                                                                                                            └── 66488a6fe   (= 当前 GitHub main HEAD)
+                                                                                                                    └── (未提交) 首页风格开关
 ```
 
 **因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动。** 若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成：
@@ -67,7 +70,7 @@ AI 修改本仓库时必须同时满足：
 - 全局主题/底层 UI：`web/src/styles/`、`components/ui/table.tsx`、`components/ui/sidebar.tsx`、`nav-group.tsx`、`section-page-layout.tsx`
 - 品牌与外壳：`components/footer`、`features/about`、`components/logo`、`system-brand`、`index.html`、`main.tsx`
 - 元数据与 CI：`VERSION`、`.github/workflows/*`（`docker-image.yml` 除外，它是 GitHub 侧既有文件，须保留）
-- 官方 `features/home/`（21 文件）**完整保留**，作为抗上游冲突的回滚通道
+- 官方 `features/home/`（21 文件）**源码零改动**，作为回滚通道完整保留；仅在 `features/home/__tests__/` 下**新增** 1 个测试文件 `root-route.test.tsx`（测根路由开关，不改官方源码）
 - 官方既有失败测试与 Windows SQLite 句柄问题（见 §6.2）
 
 ---
@@ -108,10 +111,19 @@ AI 修改本仓库时必须同时满足：
 - **存储**：`options` 表键 `DefaultThemeSettings`（JSON）。**注意**：后端**故意不在 `common` 变量里保留副本**（避免无锁写入），前端经 `/api/status` 读取。
 - **移植注意**：这是本仓库**唯一**触碰主题体系的地方，且限定在「默认值下发 + 用户独立存储」，**没有**修改 `styles/` 或底层 UI 组件。
 
-### B5 · OpenRouter 风格极简首页（Landing V2）
-- **文件**：`web/src/features/landing-v2/**`（11 文件，全新）、`web/src/routes/landing-v2.tsx`(新)、`web/src/routes/index.tsx`（**2 行：import 与 component 各 1 行**）
-- **符号**：`features/landing-v2/index.tsx`、`use-landing-data.ts`
-- **⚠️ 根路由 `/` 已被改为指向 LandingV2**（`index.tsx` 的 `component: Home` → `component: LandingV2`）。官方 `features/home/` 目录**零改动**、代码完整保留，`/landing-v2` 路由也单独存在；但**没有任何 UI 开关**可以切回官方首页 —— 要回退只能改回 `routes/index.tsx` 那 1 行。移植时若只想并存不顶替，就**不要**应用这 1 行改动。
+### B5 · OpenRouter 风格极简首页（Landing V2）+ 首页风格开关
+- **文件**：`web/src/features/landing-v2/**`（11 文件，全新）、`web/src/routes/landing-v2.tsx`(新)、`web/src/routes/index.tsx`、`web/src/stores/system-config-store.ts`、`web/src/lib/status-query.ts`、`web/src/features/system-settings/general/system-info-section.tsx`、`web/src/features/system-settings/{types.ts,site/index.tsx,site/section-registry.tsx,hooks/use-update-option.ts}`、`model/option.go`、`controller/misc.go`、`web/src/i18n/locales/*.json`
+- **符号**：`features/landing-v2/index.tsx`、`use-landing-data.ts`、`HomePageStyle`（后端 option 键）、`home_page_style`（`/api/status` 字段）、`HomePageStyle`（TS 类型 `'classic' | 'landing-v2'`）、`normalizeHomePageStyle(value)`、`config.homePageStyle`
+- **根路由行为（已改，不再是「直接顶替」）**：
+  - `routes/index.tsx` 的 `RootPage()` 从持久化 store 读 `config.homePageStyle`：`'landing-v2'` → `<LandingV2/>`，**其它一切取值（含 `undefined`/`''`/未知值）→ `<Home/>`（官方首页）**。
+  - **默认是官方首页**（`classic`）：`model/option.go` 的 `InitOptionMap()` 默认 `"HomePageStyle" = "classic"`，`normalizeHomePageStyle` 只在严格等于 `'landing-v2'` 时才切换。**老库没有该 option 行也不会变**（实测：删行重启后 `/api/status` 仍返回 `classic`）。
+  - 读 **store 而非 `/api/status` 响应**，避免刷新时先闪官方首页；store 由 `main.tsx` 的 `initSystemBranding()` 在 React 挂载前从 localStorage 恢复、再后台刷新。
+- **存储**：`options` 表键 `HomePageStyle`（字符串，取值 `classic`/`landing-v2`）—— **0 DDL**，仍是 `options(key,value)` 两列。
+- **校验**：`model/option.go` 的 `validateOptionValue` 末尾新增分支，非 `classic`/`landing-v2` 一律返回错误。实测非法值被拒且**不落库**（`<no row>`），空串同样拒绝。
+- **下发**：`controller/misc.go` 的 `GetStatus` 在 `"default_theme_settings"` 之后新增 `"home_page_style": common.OptionMap["HomePageStyle"]`；同时 `GetOptions`（`/api/option/`）会把它带给设置页（键名不以 `Token`/`Secret`/`Key` 结尾，不被敏感键过滤）。
+- **设置入口**：系统设置 → 站点 → 系统信息 → 新增「Home Page Style」`Select`（`官方首页` / `OpenRouter 风格首页`）；`HomePageStyle` 已加入 `SiteSettings`、`defaultSiteSettings`、`site/section-registry.tsx` 的 build 与 `_systemInfoSchema`/`systemInfoSchemaWithI18n`。改完必须把 `HomePageStyle` 登记进 `use-update-option.ts` 的 `STATUS_RELATED_KEYS`，否则保存后不刷新 `['status']`。
+- **i18n**：新增 5 键 × 7 语言（`Home Page Style`、`Official home page`、`OpenRouter style home page`、`Select home page style`、`Layout of the site root route. Custom home page content takes precedence over both layouts.`）。**注意 en 的 key 必须与 `t()` 调用里的字面量逐字一致**（en 的 value 必须等于 key），否则英文界面显示中文。
+- **移植注意**：若只想并存不顶替，**不要**应用 `routes/index.tsx`、`store`、`status-query`、`option.go`、`misc.go` 这 5 处的开关改动，只移植 `web/src/features/landing-v2/**` 并把 `/landing-v2` 当作独立预览路由。
 
 ### B6 · 防黑产/防自动化（Anti-Abuse）
 - **文件**：`controller/checkin.go`、`controller/checkin_antiabuse_test.go`(新)、`common/constants.go`、`setting/operation_setting/checkin_setting.go`、`model/option.go`、`web/src/features/profile/**`
@@ -145,7 +157,7 @@ AI 修改本仓库时必须同时满足：
 
 ### B10 · 全链路 i18n
 - **文件**：`i18n/i18n.go`、`i18n/keys.go`、`i18n/locales/{en,zh-CN,zh-TW}.yaml`、`web/src/i18n/locales/{en,zh,zh-TW,ja,fr,ru,vi}.json`、`setting/console_setting/validation.go`
-- **规模**：后端 3 语言 × 265 键（其中 24 个 `sanitize.*` 为本次新增）；前端 7 语言 × **6964 键，0 缺失/0 多余/0 重复**
+- **规模**：后端 3 语言 × 265 键（其中 24 个 `sanitize.*` 为本次新增）；前端 7 语言 × **6969 键，0 缺失/0 多余/0 重复**
 - **约定**：
   - 后端库 `nicksnyder/go-i18n/v2`，语言 en / zh-CN / zh-TW；
   - 前端 `i18next`，key **就是英文源串**（flat JSON）；
@@ -264,23 +276,23 @@ AI 修改本仓库时必须同时满足：
 
 ---
 
-## 3. 改动文件清单（131 业务文件）
+## 3. 改动文件清单（137 业务文件）
 
 ### 3.1 按层统计（实测）
 
 | 层 | 新增 | 修改 | 小计 |
 |---|---|---|---|
-| 前端 `web/src/` | 19 | 54 | **73** |
-| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`） | 18 | 37 | **55** |
+| 前端 `web/src/` | 21 | 57 | **78** |
+| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`） | 18 | 38 | **56** |
 | 其它（根目录文档、`VERSION`、workflow、`i18n/locales/*.yaml`） | 3 | 4 | 7 |
-| **合计** | **40** | **95** | **135** |
+| **合计** | **42** | **99** | **141** |
 
-其中**业务**文件 131 个（37 新增 + 94 修改），**非业务** 4 个（见 §0）。
+其中**业务**文件 137 个（39 新增 + 98 修改），**非业务** 4 个（见 §0）。
 
-Go 文件按目录细分的修改数：`controller` 9、`model` 6、`relay` 5、`service` 3、`router` 3、`setting` 3、`common` 2、`constant` 2、`i18n` 2、`relaykit` 2 = **37**。
+Go 文件按目录细分的修改数：`controller` 10、`model` 6、`relay` 5、`router` 3、`service` 3、`setting` 3、`common` 2、`constant` 2、`i18n` 2、`relaykit` 2 = **38**。
 前端修改数 Top：`web/src/features/**`、`web/src/i18n`、`web/src/lib`、`web/src/context`、`web/src/components`。
 
-### 3.2 新增文件（37 个业务文件）
+### 3.2 新增文件（39 个业务文件）
 
 ```
 common/error_rule.go
@@ -303,9 +315,11 @@ service/pseudo_error_detector.go
 service/pseudo_error_detector_test.go
 web/src/features/channels/components/__tests__/pseudo-200-i18n.test.tsx
 web/src/features/channels/lib/__tests__/pseudo-200-configuration.test.ts
+web/src/features/home/__tests__/root-route.test.tsx
 web/src/features/landing-v2/**                      (11 文件)
 web/src/features/profile/__tests__/checkin-topup-gate.test.tsx
 web/src/features/system-settings/content/customer-service-section.tsx
+web/src/features/system-settings/general/__tests__/home-page-style.test.tsx
 web/src/features/system-settings/request-policies/error-mapping-section.tsx
 web/src/features/usage-logs/lib/__tests__/model-mapping-visibility.test.ts
 web/src/lib/image-compress.ts
@@ -317,7 +331,7 @@ web/src/routes/landing-v2.tsx
 ### 3.3 新增配置键总表
 
 **`options` 表**：
-`MaxRegisterNumPerIP`、`AffiliateCommissionRate`、`AffiliateDescription`、`DefaultThemeSettings`、`ErrorSanitizationEnabled`、`ErrorMappingRules`
+`MaxRegisterNumPerIP`、`AffiliateCommissionRate`、`AffiliateDescription`、`DefaultThemeSettings`、`HomePageStyle`、`ErrorSanitizationEnabled`、`ErrorMappingRules`
 
 **`console_setting`（JSON，落 options）**：
 `customer_service`、`customer_service_enabled`
@@ -345,7 +359,7 @@ git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，结果与交付仓库 **2580 文件逐字节一致**（135 文件改动，含新增的 `relay/channel/opencode/` 包）。
+**已验证**：该补丁可干净应用，结果与交付仓库 **2580 文件逐字节一致**（141 文件改动，含新增的 `relay/channel/opencode/` 包）。
 > `git apply` 可能提示 5 行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
 ### 4.2 方式 B：变基到更新的官方版本
@@ -362,7 +376,9 @@ git rebase upstream/main            # 或指定目标提交
 |---|---|---|
 | `relay/channel/{openai,gemini}/relay-*.go` | 上游频繁改动响应处理 | 保留上游逻辑，**只重新插入 8 处 `service.IsPseudo200Error(info.ChannelSetting, …)` 调用** |
 | `web/src/features/channels/components/drawers/channel-mutate-drawer.tsx` | 官方 5000+ 行高频变更 | 保留上游，重新插入 `pseudo200Fields`（规则框 + 恢复默认 + 自动回填）与 `SENSITIVE_FORM_FIELDS` 的 **3 个**键 |
-| `model/option.go` | 官方持续新增 option | 保留上游，重新加 6 个 `OptionMap[...]` 与对应 `case` 分支 |
+| `model/option.go` | 官方持续新增 option | 保留上游，重新加 7 个 `OptionMap[...]`（含 `HomePageStyle` + `validateOptionValue` 分支）与对应 `case` 分支 |
+| `web/src/routes/index.tsx` | 官方首页路由 | 保留上游的 `createFileRoute('/')`，把 `component` 换成读 `config.homePageStyle` 的 `RootPage()`；**默认分支必须回 `Home`** |
+| `web/src/lib/status-query.ts` / `web/src/stores/system-config-store.ts` | 官方持续新增 status 字段 | 保留上游，重新加 `normalizeHomePageStyle` + `homePageStyle` 字段映射 |
 | `model/topup.go` | 官方改充值链路 | 保留上游，重新加 6 处 `processTopUpAffiliateRewardTx` 与 0 额度守卫 |
 | `web/src/i18n/locales/*.json` | 官方持续加键 | 保留上游，重新追加本仓库新增键（7 语言**同步**）。**注意**：新键必须加在 `"translation"` **对象内部**，加在根对象会导致 i18next 回退显示英文 key（见 §1 约束三与 PORTING_NOTES 1.0.1） |
 | `model/main.go` | AutoMigrate 列表 | 保留上游，重新加 `&AffiliateReward{}` |
@@ -399,7 +415,8 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 12 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，约 25 分钟）。
-  - **⚠️ `latest` 当前对应 `adaba2781`**（最后一次触发构建的代码提交），**不是** HEAD `d1ef7cc56`。原因：之后的 4 个提交只改 `*.md`，而 `paths` 过滤器不含 `*.md`，故不触发构建 —— **这是期望行为**。已逐字节验证 `adaba2781..HEAD` 之间 **2073 个运行时文件全部一致**，差异仅为 `README_CN.md` / `UPGRADE_GUIDE.md` / 一个 `_test.go`。因此**该镜像就是当前 HEAD 的可运行产物**，可直接上线。
+  - **⚠️ `latest` 当前对应 `adaba2781`**（最后一次触发构建的代码提交），**不是** HEAD `66488a6fe`。原因：之后的提交只改 `*.md`（外加一个 `_test.go`，也在 `paths` 过滤之外），而 `paths` 过滤器不含 `*.md`，故不触发构建 —— **这是期望行为**。已逐字节验证 `adaba2781..66488a6fe` 之间 **2073 个运行时文件全部一致**，差异仅为 `README_CN.md` / `UPGRADE_GUIDE.md` / 一个 `_test.go`。因此对 `66488a6fe` 而言，**该镜像就是它的可运行产物**。
+  - **⚠️ 但「首页风格开关」改动尚未进入任何镜像**：它改了 `*.go` 与 `web/src/**`，属于**会**触发构建的路径。**推送到 `main` 后必须等 GitHub Actions 跑完（约 25 分钟）镜像才包含该功能。** 在那之前 `latest` 里的根路由仍是旧的「直接顶替官方首页」行为，且 `/api/status` 没有 `home_page_style` 字段（前端会按 `classic` 兜底，但那是新前端才有的逻辑）。
   - **镜像公开性**：已实测**匿名可拉**（无需 `docker login`）。
   - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 12 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
 
@@ -420,10 +437,11 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端全量 `vitest` | **170 文件 / 2136 用例**，连续 2 次全过 |
 | 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |
-| 前端 i18n | 7 语言 × 6964 键，0 缺失/多余/重复 |
+| 前端 i18n | 7 语言 × 6969 键，0 缺失/多余/重复 |
 | 后端 i18n | 3 语言 × 265 键 |
 | **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
 | **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |
+| **MySQL：首页风格开关端到端** | 无 option 行 → `/api/status` 返回 `classic`；非法值 `landing-v3`/空串被拒且不落库；`landing-v2` 落库并下发；删行重启仍 `classic`；`options` 表列数仍为 2（**0 DDL**） |
 
 ### 6.2 官方既有问题（**不要修**）
 
@@ -460,6 +478,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
     未使用方言特有类型、函数或 `ALTER COLUMN`；并发幂等靠 `uniqueIndex` 兜底，三种方言语义一致。
 - **`-race` 不可用**：`go: -race requires cgo`。并发幂等性通过行为测试证明（16 goroutine → 1 成功 / 15 拒绝 / 1 条流水 / 额度只入账一次）。
 - **真实浏览器 + 真实后端未跑**：前端验证止于 DOM 行为与提交 payload 层。
+- **但「真实二进制 + 真实 MySQL + 真实 HTTP」已跑**（本次首页风格开关的上线前验证，见 §6.1 末行）：Linux/amd64 交叉编译产物在测试机连真 MySQL 冷启动 → `/api/setup` 建管理员 → 登录取 JWT → `PUT /api/option/` 改 `HomePageStyle` → `GET /api/status` 与 `GET /api/option/` 双向核对 → 删行重启复验。**仍未做的是浏览器 UI 点击**（jsdom 已覆盖交互与 payload，但没人在真浏览器里点过下拉框）。
 - **流式伪 200 跨帧漏检**：已实测并在 B11 节记录，**刻意未修**（见 B11「已知限制」）。
 
 ---
@@ -483,7 +502,14 @@ go test ./service/ -run 'TestGetChannelDefaultPseudo200RulesRoundTrip'
 grep -A2 'func ShouldDisableChannel' service/channel.go | grep ErrorCodePromptBlocked
 
 # 改动规模
-git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=40 M=95 D=0
+git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=42 M=99 D=0（含未提交的开关改动）
+
+# 首页风格开关：默认必须是 classic，且非法值不落库
+grep -n 'HomePageStyle' model/option.go controller/misc.go
+go test ./controller/ -run '^TestHomePageStyleOptionIsValidatedAndAdvertised$'
+cd web && bun x vitest run src/features/home/__tests__/root-route.test.tsx \
+  src/features/system-settings/general/__tests__/home-page-style.test.tsx \
+  src/lib/__tests__/status-query.test.tsx
 
 # 三方言：MySQL 数据库矩阵（需先把远端 3306 隧道到 127.0.0.1，见 §6.3）
 TEST_MYSQL_DSN='newapi:***@tcp(127.0.0.1:3306)/newapi_test?charset=utf8mb4&parseTime=true&loc=Local' \

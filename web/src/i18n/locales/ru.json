@@ -6963,6 +6963,11 @@
     "Each line is a signature, optionally followed by | and comma-separated words that must also appear.": "Одно правило в строке: сигнатура, затем при необходимости | и слова через запятую, которые тоже должны присутствовать.",
     "A response counts as a pseudo-200 error only when it starts with a signature and stays under {{chars}} characters. Clear the list to fall back to the built-in signatures.": "Ответ считается псевдо-200 только если он начинается с сигнатуры и короче {{chars}} символов. Очистите список, чтобы вернуться к встроенным сигнатурам.",
     "Connect to OpenCode model services with official client spoofing": "Подключение к сервисам моделей OpenCode с маскировкой под официальный клиент",
-    "Enter OpenCode API key (oc_sk_... or partner key)": "Введите ключ API OpenCode (oc_sk_... или партнёрский ключ)"
+    "Enter OpenCode API key (oc_sk_... or partner key)": "Введите ключ API OpenCode (oc_sk_... или партнёрский ключ)",
+    "Home Page Style": "Стиль главной страницы",
+    "Official home page": "Официальная главная страница",
+    "OpenRouter style home page": "Главная страница в стиле OpenRouter",
+    "Select home page style": "Выберите стиль главной страницы",
+    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Макет, используемый корневым маршрутом сайта. Пользовательское содержимое главной страницы имеет приоритет над обоими макетами."
   }
 }

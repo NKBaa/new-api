@@ -113,6 +113,7 @@ func GetStatus(c *gin.Context) {
 		"SidebarModulesAdmin":    common.OptionMap["SidebarModulesAdmin"],
 		"affiliate_description":  common.OptionMap["AffiliateDescription"],
 		"default_theme_settings": common.OptionMap["DefaultThemeSettings"],
+		"home_page_style":        common.OptionMap["HomePageStyle"],
 
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,

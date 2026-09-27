@@ -30,6 +30,8 @@ import {
 import {
   STATUS_QUERY_KEY,
   ensureStatus,
+  mapStatusDataToConfig,
+  normalizeHomePageStyle,
   statusQueryOptions,
 } from '@/lib/status-query'
 import { useSystemConfigStore } from '@/stores/system-config-store'
@@ -177,6 +179,27 @@ describe('shared status query deduplication', () => {
       ).toBe('refreshed')
     })
     expect(statusRequests).toHaveLength(1)
+  })
+})
+
+describe('home page style from status payload', () => {
+  test('selects the alternate landing page only for an explicit landing-v2', () => {
+    expect(normalizeHomePageStyle('landing-v2')).toBe('landing-v2')
+    expect(mapStatusDataToConfig({ home_page_style: 'landing-v2' })).toMatchObject(
+      { homePageStyle: 'landing-v2' }
+    )
+  })
+
+  test.each([
+    ['missing field', undefined],
+    ['classic', 'classic'],
+    ['an unknown value from a newer server', 'landing-v3'],
+    ['an empty string', ''],
+  ])('falls back to the official home page for %s', (_label, value) => {
+    expect(normalizeHomePageStyle(value)).toBe('classic')
+    expect(
+      mapStatusDataToConfig({ home_page_style: value }).homePageStyle
+    ).toBe('classic')
   })
 })
 

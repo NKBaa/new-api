@@ -25,6 +25,7 @@ import {
   useSystemConfigStore,
   type CurrencyConfig,
   type CurrencyDisplayType,
+  type HomePageStyle,
   type SystemConfig,
   DEFAULT_CURRENCY_CONFIG,
 } from '@/stores/system-config-store'
@@ -44,6 +45,17 @@ import {
 export const STATUS_QUERY_KEY = ['status'] as const
 
 export const STATUS_STORAGE_KEY = 'status'
+
+/**
+ * Resolve `home_page_style` from `/api/status`.
+ *
+ * Only the explicit `landing-v2` value selects the alternate landing page;
+ * anything else (missing field, empty string, an older server, or a typo) falls
+ * back to the official `classic` home page.
+ */
+export function normalizeHomePageStyle(value: unknown): HomePageStyle {
+  return value === 'landing-v2' ? 'landing-v2' : 'classic'
+}
 
 /** Status payload shape — loose on purpose; the backend map is open-ended. */
 export type StatusData = Record<string, unknown>
@@ -104,6 +116,7 @@ export function mapStatusDataToConfig(
     defaultThemeSettings: parseDefaultThemeSettings(
       data.default_theme_settings as string | undefined
     ),
+    homePageStyle: normalizeHomePageStyle(data.home_page_style),
   }
 }
 

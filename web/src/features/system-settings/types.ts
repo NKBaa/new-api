@@ -147,6 +147,7 @@ export type SiteSettings = {
   Footer: string
   About: string
   HomePageContent: string
+  HomePageStyle: string
   ServerAddress: string
   TaskPublicAddress: string
   'general_setting.docs_link': string

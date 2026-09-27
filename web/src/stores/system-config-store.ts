@@ -24,6 +24,9 @@ import type { DefaultThemeSettings } from '@/lib/theme-customization'
 
 export type CurrencyDisplayType = 'USD' | 'CNY' | 'TOKENS' | 'CUSTOM'
 
+/** Which landing experience the root route renders. */
+export type HomePageStyle = 'classic' | 'landing-v2'
+
 export interface CurrencyConfig {
   /** Whether to render quota values as currency instead of raw units */
   displayInCurrency: boolean
@@ -47,6 +50,12 @@ export interface SystemConfig {
   displayTokenStatEnabled?: boolean
   currency: CurrencyConfig
   defaultThemeSettings?: DefaultThemeSettings | null
+  /**
+   * Home page layout chosen in system settings. Optional because persisted
+   * state written before the option existed has no value; consumers treat
+   * anything other than `landing-v2` as the official `classic` home page.
+   */
+  homePageStyle?: HomePageStyle
 }
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {

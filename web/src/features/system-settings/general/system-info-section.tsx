@@ -42,8 +42,17 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { compressImageToDataUrl } from '@/lib/image-compress'
+import { normalizeHomePageStyle } from '@/lib/status-query'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
@@ -93,6 +102,7 @@ const _systemInfoSchema = z.object({
   Footer: z.string().optional(),
   About: z.string().optional(),
   HomePageContent: z.string().optional(),
+  HomePageStyle: z.enum(['classic', 'landing-v2']),
   general_setting: z.object({
     docs_link: z.string(),
   }),
@@ -125,6 +135,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
     HomePageContent: normalizeValue(defaultValues.HomePageContent),
+    HomePageStyle: normalizeHomePageStyle(defaultValues.HomePageStyle),
     general_setting: {
       docs_link: normalizeValue(defaultValues.general_setting?.docs_link),
     },
@@ -156,6 +167,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
+    HomePageStyle: z.enum(['classic', 'landing-v2']),
     general_setting: z.object({
       docs_link: z.string(),
     }),
@@ -569,6 +581,54 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     <FormDescription>
                       {t(
                         'Supports HTML markup or iframe embedding. Enter HTML code directly, or provide a complete URL to automatically embed it as an iframe.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='HomePageStyle'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Home Page Style')}</FormLabel>
+                    <Select
+                      items={[
+                        {
+                          value: 'classic',
+                          label: t('Official home page'),
+                        },
+                        {
+                          value: 'landing-v2',
+                          label: t('OpenRouter style home page'),
+                        },
+                      ]}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={t('Select home page style')}
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value='classic'>
+                            {t('Official home page')}
+                          </SelectItem>
+                          <SelectItem value='landing-v2'>
+                            {t('OpenRouter style home page')}
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t(
+                        'Layout of the site root route. Custom home page content takes precedence over both layouts.'
                       )}
                     </FormDescription>
                     <FormMessage />
