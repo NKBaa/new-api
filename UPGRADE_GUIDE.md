@@ -11,11 +11,11 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `894724c8f` |
+| 当前交付提交 | `de125fff9`（= GitHub `main` HEAD） |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **135 文件** = 40 新增 + 95 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
-| 纯业务改动 | **127 文件** = 34 新增 + 93 修改 |
+| 纯业务改动 | **131 文件** = 37 新增 + 94 修改 |
 | 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
@@ -197,6 +197,23 @@ AI 修改本仓库时必须同时满足：
   3. `channel-form.ts` 需 **6 处**改动：zod schema、2 处默认值、`transformChannelToFormDefaults` 解析、`buildSettingJSON` 序列化（+ `channel-configuration.ts` 的 fields 名单、`channel-actions.ts` 的 query key）；
   4. `channel-form-errors.ts` 的 `ADVANCED_SETTINGS_FIELDS` **故意未登记** —— 该名单仅驱动 `isAdvancedSettingsField`/`hasAdvancedSettingsErrors`，二者在仓库中**除自身外无调用方**，且新字段为可选类型不会产生校验错误，属"不修改非业务代码"；
   5. 新增规则框的 i18n 键只有 3 个（`Blocking signatures`、格式占位符、长度与回退说明），**7 个语种都要补**，否则一致性校验失败。
+- **⚠️ 已知限制：流式请求只在「首帧」检测，拦截语跨帧会漏检**（真实 MySQL 环境实测确认，**不要**再写成「流式与首包探测」就完事）：
+  - 机制：`OaiStreamHandler` 里 3 处检测都被 `info.SendResponseCount == 0` 门控。第 1 帧进 `dataHandler` 后才由 `HandleStreamFormat` 把 `SendResponseCount` 置 1（见 `relay/channel/openai/helper.go:26`），因此只有**第 1 帧**参与判定。
+  - 实测矩阵（同一句内置拦截语 `this prompt contains sensitive words, which violates our policy`，检测已开启）：
+
+    | 上游切分方式 | 请求方式 | HTTP | 检出 | 客户端是否看到拦截原文 |
+    |---|---|---|---|---|
+    | 整句一帧 | 流式 | 502 | ✅ | 否（0 字节下发） |
+    | 整句一帧 | 非流式 | 502 | ✅ | 否 |
+    | 切成 2 帧（`...sensitive ` + `words, which violates...`） | 流式 | **200** | ❌ | **是，全句泄露** |
+    | 切成 2 帧 | 非流式 | 502 | ✅ | 否 |
+    | 逐词切分（10 帧） | 流式 | **200** | ❌ | 否（各帧都太短，未命中 400 字符上限内的完整句式） |
+    | 逐词切分 | 非流式 | 502 | ✅ | 否 |
+
+  - 结论：**非流式客户端（含本渠道的 SSE 聚合回 JSON 路径）100% 检出**；流式客户端仅当上游把整条拦截语放在首个 SSE 帧时才检出。上游把拒绝语拆成多帧时，泄漏内容**已下发无法追回**，该次请求**照常计费、不触发换渠道重试**。
+  - **未修复是刻意决定**（2026-06 实测后经确认）：修复需要把检测窗口从首帧延长到有界多帧，会改变首帧下发时机与延迟。**运维侧绕开办法**：在渠道规则列表里加一条**更靠前**的特征，或使用「追加特征」框（`Pseudo200CustomKeywords`，**包含匹配**、不要求首部锚定）。
+  - 回归测试 `TestOaiStreamHandler_DetectsPseudo200StreamChunk` 用的是**单帧** SSE，因此测试通过**不能**证明跨帧场景可用。
+  - 若日后要修：`relay/channel/openai/relay-openai.go` L131 / L161 / L177 三处 `SendResponseCount == 0` 门控需一并改成「首帧下发后有界窗口」，并补一个**跨帧**回归用例（当前仓库只用单帧用例，覆盖不到该缺陷）。
 
 ---
 
@@ -247,23 +264,23 @@ AI 修改本仓库时必须同时满足：
 
 ---
 
-## 3. 改动文件清单（117 业务文件）
+## 3. 改动文件清单（131 业务文件）
 
 ### 3.1 按层统计（实测）
 
 | 层 | 新增 | 修改 | 小计 |
 |---|---|---|---|
 | 前端 `web/src/` | 19 | 54 | **73** |
-| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`/`i18n`） | 15 | 36 | **51** |
-| 其它（根目录文档、VERSION、workflow） | 3 | 4 | 7 |
-| **合计** | **37** | **94** | **131** |
+| 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`） | 18 | 37 | **55** |
+| 其它（根目录文档、`VERSION`、workflow、`i18n/locales/*.yaml`） | 3 | 4 | 7 |
+| **合计** | **40** | **95** | **135** |
 
-其中**业务**文件 127 个（34 新增 + 93 修改），**非业务** 4 个（见 §0）。
+其中**业务**文件 131 个（37 新增 + 94 修改），**非业务** 4 个（见 §0）。
 
-Go 文件按目录细分的修改数：`controller` 9、`model` 6、`service` 3、`router` 3、`setting` 3、`relay` 4、`constant` 2、`common` 2、`i18n` 2、`relaykit` 2。
+Go 文件按目录细分的修改数：`controller` 9、`model` 6、`relay` 5、`service` 3、`router` 3、`setting` 3、`common` 2、`constant` 2、`i18n` 2、`relaykit` 2 = **37**。
 前端修改数 Top：`web/src/features/**`、`web/src/i18n`、`web/src/lib`、`web/src/context`、`web/src/components`。
 
-### 3.2 新增文件（34 个业务文件）
+### 3.2 新增文件（37 个业务文件）
 
 ```
 common/error_rule.go
@@ -275,7 +292,10 @@ relay/channel/gemini/pseudo_200_test.go
 relay/channel/openai/pseudo_200_test.go
 relay/channel/opencode/adaptor.go
 relay/channel/opencode/adaptor_test.go
+relay/channel/opencode/agent_shape_test.go
 relay/channel/opencode/constants.go
+relay/channel/opencode/default_model_test.go
+relay/channel/opencode/dispatch_test.go
 relaykit/types/error_test.go
 service/error_sanitizer.go
 service/error_sanitizer_test.go
@@ -376,7 +396,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 - **端口/环境**：沿用官方；本仓库未新增必需环境变量。
 - **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（`v1.0.0-rc.40`）。**不要清空**。
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
-  - **MySQL 已实测**：已在真实 MySQL 生产库上部署运行，功能正常（见 §6.3）。
+  - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 12 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，约 25 分钟）。
 
@@ -399,6 +419,8 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |
 | 前端 i18n | 7 语言 × 6964 键，0 缺失/多余/重复 |
 | 后端 i18n | 3 语言 × 265 键 |
+| **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
+| **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |
 
 ### 6.2 官方既有问题（**不要修**）
 
@@ -411,13 +433,31 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 
 ### 6.3 未验证项（如实声明）
 
-- ~~**MySQL / PostgreSQL 未实测**~~ → **MySQL 已实测通过**：已在真实 MySQL 生产库上部署运行，
-  建表（`affiliate_rewards`）、升级、12 项业务功能均正常，无报错。
-  - **PostgreSQL 仍未实测**：无 PG 环境。本次未引入 PG 特有写法，但**没有** PG 实测证据。
+- ~~**MySQL / PostgreSQL 未实测**~~ → **MySQL 已实测通过**。环境与证据如下（可复现）：
+  - **环境**：Ubuntu 24.04.4 LTS + **MySQL 8.0.46-0ubuntu0.24.04.4**，`caching_sha2_password`，服务端字符集 `utf8mb4` / `utf8mb4_0900_ai_ci`，`sql_mode` 含 `ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION`。用户 `newapi` 需有建库权限（矩阵测试各自创建一次性库）。
+  - **部署与迁移**：冷启动建出 **37 张表**；`affiliate_rewards` 为 `id bigint auto_increment PK` / `reference varchar(160) NOT NULL UNI` / `user_id bigint NOT NULL MUL` / `reward_quota bigint NOT NULL` / `created_at bigint NULL`；重复 `reference` → `ERROR 1062 (23000) Duplicate entry 'dup-ref-1' for key 'affiliate_rewards.idx_affiliate_rewards_reference'`。
+  - **迁移幂等性**：第 2、3 次启动的 schema 指纹（445 行列）与索引指纹（216 行）**逐字节一致**，general query log 捕获到的 DDL 语句数为 **0**，数据存活（users/channels/tokens/options 计数不变）。
+  - **功能**：`GET /api/setup` → `{"database_type":"mysql"}`；走真实 API 完成初始化与登录；渠道级伪 200 三项设置在 `channels.setting` 里 PUT/GET 往返**逐字节一致**（含嵌入 `\n` 与 `|`）；OpenCode 渠道对真实 mock 上游发出的指纹头全部符合预期（`opencode/1.18.31`、`x-opencode-client: cli`、`x-opencode-request` 每请求刷新、session 稳定）；计费实测：被拦截请求 **−0**，正常请求各 −75，仅正常请求产生 `type=2` 消费流水。
+  - **独立日志库**：`LOG_SQL_DSN` 指向另一个库时，`audit_logs` / `logs` 落在日志库，主库 `logs` 保持空。
+- **MySQL 测试的官方前置条件（踩过的坑，复现时必须满足）**：
+  1. `controller/access_token_audit_test.go:455` 断言 `net.ParseIP(host).IsLoopback()`，**非 loopback 的 MySQL DSN 会让所有 `*DatabaseMatrix/mysql` 子用例失败**。本地跑必须先把远端 3306 隧道到 `127.0.0.1:3306`。
+  2. 选子用例**不能**写成一个含 `/` 的完整正则（Go 用 `/` 切分 `-run`），要用 `-run '^(TestA|TestB)$/mysql'`。
+  3. `TestDeleteRedemptionBatch/mysql` 断言 `logDB.HasTable(&model.AuditLog{}) == false`（"use an empty test log database"），**要求日志库是"从未建过表"的干净库**。若之前手动在日志库建过表，必须先 drop，否则该用例必失败。
+  4. 完整命令（实测通过）：
+     ```bash
+     TEST_MYSQL_DSN='newapi:***@tcp(127.0.0.1:3306)/newapi_test?charset=utf8mb4&parseTime=true&loc=Local' \
+     TEST_MYSQL_LOG_DSN='newapi:***@tcp(127.0.0.1:3306)/newapi_test_log?charset=utf8mb4&parseTime=true&loc=Local' \
+     TEST_TASK_DB_DIALECT=mysql \
+     go test ./controller/ ./model/ -count=1 -timeout 60m -v \
+       -run '^(TestPreConsumePolicyDatabaseMatrix|TestRequestPolicyRoutingDatabaseMatrix|TestModelPricingConversionDatabaseMatrix|TestModelManagementDatabaseMatrix|TestVendorManagementDatabaseMatrix|TestModelDeletionDatabaseMatrix|TestSharedModelPluginPricingDatabaseMatrix|TestDeleteRedemptionBatch|TestAuditDatabaseMatrix|TestAPITokenAuditDatabaseMatrix|TestMigrationSchemaStability|TestInferencePresetSettingsAndDatabaseRoundTrip)$/mysql'
+     # → subtest PASS: 202  FAIL: 0
+     ```
+- **PostgreSQL 仍未实测**：无 PG 环境。本次未引入 PG 特有写法，但**没有** PG 实测证据。
   - 代码侧依据：`affiliate_rewards` 用标准 GORM 定义（`varchar(160)` + `uniqueIndex`），
     未使用方言特有类型、函数或 `ALTER COLUMN`；并发幂等靠 `uniqueIndex` 兜底，三种方言语义一致。
 - **`-race` 不可用**：`go: -race requires cgo`。并发幂等性通过行为测试证明（16 goroutine → 1 成功 / 15 拒绝 / 1 条流水 / 额度只入账一次）。
 - **真实浏览器 + 真实后端未跑**：前端验证止于 DOM 行为与提交 payload 层。
+- **流式伪 200 跨帧漏检**：已实测并在 B11 节记录，**刻意未修**（见 B11「已知限制」）。
 
 ---
 
@@ -426,7 +466,8 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 ```bash
 # 三原则
 git diff d04c118c8..HEAD -- '*.go' '*.sql' | grep -E '^\+.*(ALTER TABLE|ADD COLUMN|DROP COLUMN|CREATE INDEX)'   # 应无输出
-git diff d04c118c8..HEAD | grep -E 'os/exec|exec\.Command|subprocess'                                            # 应无输出
+git diff d04c118c8..HEAD -- '*.go' '*.ts' '*.tsx' | grep -E '^\+.*(os/exec|exec\.Command|subprocess)'           # 应无输出
+# 注意：必须限定到代码文件。不限定时，本手册自身含这些关键字的那几行会被 `+` 前缀带出来，属假阳性。
 
 # 伪200 必须是渠道级（旧全局开关必须不存在）
 grep -rn 'Pseudo200DetectEnabled' --include=*.go --include=*.ts --include=*.tsx .   # 应无输出
@@ -439,7 +480,15 @@ go test ./service/ -run 'TestGetChannelDefaultPseudo200RulesRoundTrip'
 grep -A2 'func ShouldDisableChannel' service/channel.go | grep ErrorCodePromptBlocked
 
 # 改动规模
-git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=34 M=86 D=0
+git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=40 M=95 D=0
+
+# 三方言：MySQL 数据库矩阵（需先把远端 3306 隧道到 127.0.0.1，见 §6.3）
+TEST_MYSQL_DSN='newapi:***@tcp(127.0.0.1:3306)/newapi_test?charset=utf8mb4&parseTime=true&loc=Local' \
+TEST_MYSQL_LOG_DSN='newapi:***@tcp(127.0.0.1:3306)/newapi_test_log?charset=utf8mb4&parseTime=true&loc=Local' \
+TEST_TASK_DB_DIALECT=mysql \
+go test ./controller/ ./model/ -count=1 -timeout 60m -v \
+  -run '^(TestPreConsumePolicyDatabaseMatrix|TestRequestPolicyRoutingDatabaseMatrix|TestModelPricingConversionDatabaseMatrix|TestModelManagementDatabaseMatrix|TestVendorManagementDatabaseMatrix|TestModelDeletionDatabaseMatrix|TestSharedModelPluginPricingDatabaseMatrix|TestDeleteRedemptionBatch|TestAuditDatabaseMatrix|TestAPITokenAuditDatabaseMatrix|TestMigrationSchemaStability|TestInferencePresetSettingsAndDatabaseRoundTrip)$/mysql'
+# 期望：subtest PASS 202 / FAIL 0
 ```
 
 ---
