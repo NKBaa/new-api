@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | `af7b2a3af`：「首页风格开关」+ 下拉框宽度修复 + 本次文档合并（`git log -1`） |
+| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`af7b2a3af`（首页风格开关 + 下拉框宽度修复），其后均为纯文档提交 |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **141 文件** = 42 新增 + 99 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -32,7 +32,8 @@ d04c118c8 (官方基线)
                                     └── 66488a6fe   (文档)
                                             └── 309b9b4f6   (首页风格开关)
                                                     └── 88d694850   (文档)
-                                                            └── af7b2a3af   (下拉框宽度修复 + 文档合并，= 当前 HEAD)
+                                                            └── af7b2a3af   (下拉框宽度修复 = 最后一个代码提交)
+                                                                    └── …(此后均为纯文档提交)…
 ```
 
 > 中间提交的完整清单、每个提交做了什么，见 §8（历史记录）。
@@ -428,9 +429,10 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 12 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
-- **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，约 25 分钟）。
-  - **⚠️ 切换前 `latest` 对应 `adaba2781`**（最后一次触发构建的代码提交）。当时 `adaba2781..66488a6fe` 之间只改 `*.md`（外加一个 `_test.go`，也在 `paths` 过滤之外），`paths` 过滤器不含 `*.md` 故不触发构建 —— **属期望行为**；已逐字节验证那 2073 个运行时文件全部一致。
-  - **⚠️ 「首页风格开关」改动尚未进入任何镜像**：它改了 `*.go` 与 `web/src/**`，属于**会**触发构建的路径。**推送到 `main` 后必须等 GitHub Actions 跑完（约 25 分钟）镜像才包含该功能。** 在那之前 `latest` 里的根路由仍是旧的「直接顶替官方首页」行为，且 `/api/status` 没有 `home_page_style` 字段。验证方法：`docker run --rm ghcr.io/nkbaa/new-api:latest` 起来后 `curl /api/status | grep home_page_style`，有输出才说明新镜像已就绪。
+- **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，实测约 16~19 分钟）。
+  - **✅ 当前 `latest` 已是最新交付代码**：对应提交 `af7b2a3af`（构建 run `36330275827`，success，16 分 26 秒）。摘要 `sha256:0af83356890efc2f5c5fdbf83ccfac9623aa82a40c89aaa11ad5ced3c5ef2869`，与标签 `sha-af7b2a3af987ed6080e50213fdc3dca4fbb0938e` **完全一致**（上一版 `sha-88d694850…` 为 `sha256:54d1f0d27edd6950…`，已确认被替换）。**首页风格开关与下拉框宽度修复都在里面。**
+  - **验证方法（可复现）**：`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪。
+  - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。因此只改文档的提交（如 `88d694850`、`0d87a54ea`）**不会**触发构建，属**期望行为**；改了 `*.go`/`web/**` 的提交（如 `af7b2a3af`）**会**触发。
   - **镜像公开性**：已实测**匿名可拉**（无需 `docker login`）。
   - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 12 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
 
@@ -555,13 +557,13 @@ go test ./controller/ ./model/ -count=1 -timeout 60m -v \
 | 交付物 | 路径 |
 |---|---|
 | 完整源码仓库 | `new-api-official-11biz/` |
-| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（810,254 字节） |
+| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（约 836 KB；**每次改文档都会变，以文件实际大小为准**） |
 | 技术手册（唯一权威，AI 用） | `UPGRADE_GUIDE.md`（本文件） |
 | 白话说明（非技术人员） | `README_CN.md` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 
 - 仓库内旧文档 `PORTING_GUIDE.md`（称「10 大业务、99 文件」，未涵盖业务十一）**已删除**，唯一权威替代品就是本手册。
-- **已推送 GitHub**：全程 **fast-forward**（非强推）、**0 删除**；并**保留** GitHub 侧既有文件 `.github/workflows/docker-image.yml`（push 到 `main` 自动构建镜像）、`UPGRADE_GUIDE.md`、`VERSION`（`v1.0.0-rc.40`）。
+- **已推送 GitHub**：全程 **fast-forward**（非强推）、**0 删除**；并**保留** GitHub 侧既有文件 `.github/workflows/docker-image.yml`（push 到 `main` 自动构建镜像）、`UPGRADE_GUIDE.md`、`VERSION`（`v1.0.0-rc.40`）。`main` 与本地 `HEAD` 一致（用 `git log --oneline github/main..HEAD` 应为空来自查）。
 - 本地旧版本（`new-api-clean/`、`node_modules/` 残留、3 个旧 `.patch`）已按要求清理，清理前全部内容已归档（见下表，零额外磁盘占用）。
 - **历史事故备忘**：原 `PORTING_NOTES.md` 一度被 `Get-Content -Raw` 以 GBK 误读 UTF-8 再写回，全角标点不可逆丢失；当时用 GBK 逆向解码恢复了全部结构、代码、命令与事实。该文件现已并入本手册，**同样的事故不会再影响独立副本（因为副本已不存在）**，但**教训仍然有效：不要用 PowerShell 直接读写本仓库的 UTF-8 中文文档**，改用 `write`/`edit` 工具或 `bun` 脚本。
 
@@ -607,6 +609,7 @@ d1ef7cc56  record the MySQL test results and the streaming pseudo-200 limit
 309b9b4f6  feat(home): add a system setting to choose the home page style
 88d694850  record the home page style switch and refresh the figures
 af7b2a3af  fix(settings): stop the home page style dropdown from clipping its labels
+（此后为纯文档提交，不再逐条列出）
 ```
 
 > `4f3acda7e`（规则覆盖测试）与 `82d3d7035`（规则可编辑）是业务十一的第二轮改造，语义细节见 §8.3 第三阶段。
