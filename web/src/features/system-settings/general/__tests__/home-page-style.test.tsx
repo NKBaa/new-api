@@ -127,3 +127,29 @@ test('leaving the selector untouched does not write HomePageStyle', async () => 
   )
   expect(api.put).toHaveBeenCalledTimes(1)
 })
+
+/**
+ * A `SelectTrigger` sizes itself to its content (`w-fit`), and `SelectContent`
+ * pins the popup to the trigger width (`w-(--anchor-width)`) while clipping
+ * horizontal overflow. With the shorter `Official home page` selected the
+ * trigger collapsed to roughly 110px, so the popup was too narrow for
+ * `OpenRouter style home page` and cut off its right edge. Both parts of the
+ * control therefore need an explicit width contract.
+ */
+test('the trigger does not collapse to the shorter option label', async () => {
+  const selector = await renderSystemInfo()
+
+  expect(selector).toHaveClass('w-full', 'sm:w-[240px]')
+})
+
+test('the popup may outgrow the trigger so long option labels are not clipped', async () => {
+  const user = userEvent.setup()
+  const selector = await renderSystemInfo()
+
+  await user.click(selector)
+  const popup = document.querySelector('[data-slot=select-content]')
+
+  expect(popup).not.toBeNull()
+  expect(popup).toHaveClass('w-auto', 'min-w-(--anchor-width)')
+  expect(popup).not.toHaveClass('w-(--anchor-width)')
+})

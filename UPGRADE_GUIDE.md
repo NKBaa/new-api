@@ -122,6 +122,12 @@ AI 修改本仓库时必须同时满足：
 - **校验**：`model/option.go` 的 `validateOptionValue` 末尾新增分支，非 `classic`/`landing-v2` 一律返回错误。实测非法值被拒且**不落库**（`<no row>`），空串同样拒绝。
 - **下发**：`controller/misc.go` 的 `GetStatus` 在 `"default_theme_settings"` 之后新增 `"home_page_style": common.OptionMap["HomePageStyle"]`；同时 `GetOptions`（`/api/option/`）会把它带给设置页（键名不以 `Token`/`Secret`/`Key` 结尾，不被敏感键过滤）。
 - **设置入口**：系统设置 → 站点 → 系统信息 → 新增「Home Page Style」`Select`（`官方首页` / `OpenRouter 风格首页`）；`HomePageStyle` 已加入 `SiteSettings`、`defaultSiteSettings`、`site/section-registry.tsx` 的 build 与 `_systemInfoSchema`/`systemInfoSchemaWithI18n`。改完必须把 `HomePageStyle` 登记进 `use-update-option.ts` 的 `STATUS_RELATED_KEYS`，否则保存后不刷新 `['status']`。
+- **⚠️ 该 `Select` 必须显式给宽度**（否则长文案被截断）：`SelectTrigger` 基类含 `w-fit`，`SelectContent` 基类是 `w-(--anchor-width)` + `overflow-x-hidden`。两者叠加时，弹窗宽度被锁死等于触发框宽度，而触发框会塌缩到**当前选中项**的宽度 —— 选中较短的「官方首页」时触发框只有 ~98px，弹窗跟着只有 `min-w-36`（144px），第二项 `OpenRouter style home page`（en 194px / ru 268px）右半被裁掉（实测 en 截断 34.8px、fr 44.7px、ja 36.4px）。**必须同时改两处**：
+  - `SelectTrigger` → `className='w-full sm:w-[240px]'`（固定触发框宽度，不再随选中项伸缩）
+  - `SelectContent` → `className='w-auto min-w-(--anchor-width)'`（弹窗可**超出**触发框以容纳最长文案；`min-w` 保底与触发框等宽，7 语言全部实测 `clippedBy=[0,0]`）
+  - **不要**用 `min-w-[240px]`：它只定死 240px，俄语 `Главная страница в стиле OpenRouter`（268px）仍会被裁掉 28.3px。
+  - 该 `className` 经 `cn()`（`tailwind-merge`）后**按源码顺序**追加在基类之后，能正常覆盖 `w-fit` / `w-(--anchor-width)`；实测 `twMerge` 输出已确认 `w-fit` 被移除、`w-(--anchor-width)` 被替换为 `w-auto`。**改这段代码时不要调整基类顺序。**
+  - 回归测试：`web/src/features/system-settings/general/__tests__/home-page-style.test.tsx` 的两条用例分别锁定触发框与弹窗的 class 契约（移除任一改动即失败）。
 - **i18n**：新增 5 键 × 7 语言（`Home Page Style`、`Official home page`、`OpenRouter style home page`、`Select home page style`、`Layout of the site root route. Custom home page content takes precedence over both layouts.`）。**注意 en 的 key 必须与 `t()` 调用里的字面量逐字一致**（en 的 value 必须等于 key），否则英文界面显示中文。
 - **移植注意**：若只想并存不顶替，**不要**应用 `routes/index.tsx`、`store`、`status-query`、`option.go`、`misc.go` 这 5 处的开关改动，只移植 `web/src/features/landing-v2/**` 并把 `/landing-v2` 当作独立预览路由。
 
@@ -435,13 +441,14 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | OpenCode 渠道测试 | 51/51 PASS（`go test -v ./relay/channel/opencode/...`） |
 | 前端 `typecheck` | exit 0 |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
-| 前端全量 `vitest` | **172 文件 / 2147 用例**全过（开关改动前为 170 文件 / 2136 用例，连续 2 次全过；本次新增 11 例） |
+| 前端全量 `vitest` | **172 文件 / 2149 用例**全过（开关改动前为 170 文件 / 2136 用例，连续 2 次全过；本次新增 13 例） |
 | 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |
 | 前端 i18n | 7 语言 × 6969 键，0 缺失/多余/重复 |
 | 后端 i18n | 3 语言 × 265 键 |
 | **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
 | **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |
 | **MySQL：首页风格开关端到端** | 无 option 行 → `/api/status` 返回 `classic`；非法值 `landing-v3`/空串被拒且不落库；`landing-v2` 落库并下发；删行重启仍 `classic`；`options` 表列数仍为 2（**0 DDL**） |
+| **首页风格下拉框宽度（真实浏览器实测）** | headless Chrome + 生产 `dist` 的 CSS/Public Sans 字体，逐语言量测：修复前选中「官方首页」时触发框 98~164px、弹窗 `min-w-36`，第二项右侧被裁 4.3~44.7px（en 34.8 / fr 44.7 / ja 36.4 / vi 9.1 / ru 4.3 / zh 4.4）；修复后触发框恒为 240px，弹窗按内容取 184.4~304.3px，**7 语言 `clippedBy=[0,0]`**、无横向滚动、未溢出视口 |
 
 ### 6.2 官方既有问题（**不要修**）
 
@@ -510,6 +517,10 @@ go test ./controller/ -run '^TestHomePageStyleOptionIsValidatedAndAdvertised$'
 cd web && bun x vitest run src/features/home/__tests__/root-route.test.tsx \
   src/features/system-settings/general/__tests__/home-page-style.test.tsx \
   src/lib/__tests__/status-query.test.tsx
+
+# 首页风格下拉框不能被裁：触发框固定宽度、弹窗可超出触发框
+grep -n "w-full sm:w-\[240px\]" web/src/features/system-settings/general/system-info-section.tsx
+grep -n "w-auto min-w-(--anchor-width)" web/src/features/system-settings/general/system-info-section.tsx
 
 # 三方言：MySQL 数据库矩阵（需先把远端 3306 隧道到 127.0.0.1，见 §6.3）
 TEST_MYSQL_DSN='newapi:***@tcp(127.0.0.1:3306)/newapi_test?charset=utf8mb4&parseTime=true&loc=Local' \

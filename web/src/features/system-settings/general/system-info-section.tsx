@@ -609,13 +609,16 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                       onValueChange={field.onChange}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className='w-full sm:w-[240px]'>
                           <SelectValue
                             placeholder={t('Select home page style')}
                           />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent alignItemWithTrigger={false}>
+                      <SelectContent
+                        alignItemWithTrigger={false}
+                        className='w-auto min-w-(--anchor-width)'
+                      >
                         <SelectGroup>
                           <SelectItem value='classic'>
                             {t('Official home page')}
