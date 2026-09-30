@@ -21,25 +21,32 @@ import { t } from 'i18next'
 
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import { API_KEY_STATUS } from '@/features/keys/constants'
+import type { ApiKey } from '@/features/keys/types'
 import {
   requireServerSuccess,
   createServerError,
 } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
-export async function fetchActiveChatKey() {
-  const result = await getApiKeys({ p: 1, size: 50 })
+/** Enabled tokens a chat preset may be launched with. */
+export async function fetchEnabledChatKeys(): Promise<ApiKey[]> {
+  const result = await getApiKeys({ p: 1, size: 100 })
   if (!result.success) {
     throw createServerError(result, t('Failed to load API keys'))
   }
 
   const items = result.data?.items ?? []
-  const active = items.find((item) => item.status === API_KEY_STATUS.ENABLED)
-  if (!active) {
-    throw new Error('No enabled API keys found. Create or enable one first.')
-  }
+  return items.filter((item) => item.status === API_KEY_STATUS.ENABLED)
+}
 
-  const keyResult = await fetchTokenKey(active.id)
+/**
+ * Reveal the full secret of one token.
+ *
+ * The list API only returns masked keys, so this audited endpoint is required
+ * before a key can be embedded into a chat link.
+ */
+export async function fetchChatKeyByTokenId(tokenId: number): Promise<string> {
+  const keyResult = await fetchTokenKey(tokenId)
   if (!keyResult.success || !keyResult.data?.key) {
     throw createServerError(keyResult, t('Failed to load API keys'))
   }
@@ -47,17 +54,51 @@ export async function fetchActiveChatKey() {
   return `sk-${keyResult.data.key}`
 }
 
+export async function fetchActiveChatKey(): Promise<string> {
+  const enabledKeys = await fetchEnabledChatKeys()
+  const active = enabledKeys[0]
+  if (!active) {
+    throw new Error('No enabled API keys found. Create or enable one first.')
+  }
+
+  return fetchChatKeyByTokenId(active.id)
+}
+
 /**
- * Get the currently active API key for chat links
+ * Get the API key a chat link should be launched with.
+ *
+ * Without `tokenId` the first enabled token is used, which keeps existing
+ * entry points (chat2link, direct `/chat/{id}` visits) working unchanged.
  */
-export function useActiveChatKey(enabled: boolean) {
+export function useActiveChatKey(enabled: boolean, tokenId?: number) {
   const userId = useAuthStore((state) => state.auth.user?.id)
+  const requestedTokenId = tokenId ?? null
 
   return useQuery({
-    queryKey: ['chat-active-key', userId],
-    queryFn: async () => requireServerSuccess(await fetchActiveChatKey()),
+    queryKey: ['chat-active-key', userId, requestedTokenId],
+    queryFn: async () =>
+      requireServerSuccess(
+        requestedTokenId === null
+          ? await fetchActiveChatKey()
+          : await fetchChatKeyByTokenId(requestedTokenId)
+      ),
     enabled: enabled && Boolean(userId),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+  })
+}
+
+/** Tokens offered in the sidebar key picker. */
+export function useEnabledChatKeys(enabled: boolean) {
+  const userId = useAuthStore((state) => state.auth.user?.id)
+
+  return useQuery({
+    queryKey: ['chat-enabled-keys', userId],
+    queryFn: fetchEnabledChatKeys,
+    enabled: enabled && Boolean(userId),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    // The picker renders the failure inline; a toast would duplicate it.
+    meta: { errorToast: false },
   })
 }

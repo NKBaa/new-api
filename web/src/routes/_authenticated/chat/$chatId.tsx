@@ -20,6 +20,7 @@ import { Link, createFileRoute, redirect } from '@tanstack/react-router'
 import { Loader2, MessageCircleWarning } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { z } from 'zod'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -30,7 +31,13 @@ import {
   resolveChatUrl,
 } from '@/features/chat/lib/chat-links'
 
+const chatSearchSchema = z.object({
+  // The sidebar passes the picked token id; a direct visit omits it.
+  key: z.coerce.number().int().positive().optional().catch(undefined),
+})
+
 export const Route = createFileRoute('/_authenticated/chat/$chatId')({
+  validateSearch: chatSearchSchema,
   loader: async ({ params }) => {
     if (!Number.isInteger(Number(params.chatId))) {
       throw redirect({ to: '/dashboard' })
@@ -42,6 +49,7 @@ export const Route = createFileRoute('/_authenticated/chat/$chatId')({
 function ChatRouteComponent() {
   const { t } = useTranslation()
   const { chatId } = Route.useParams()
+  const { key: tokenId } = Route.useSearch()
   const { chatPresets, serverAddress } = useChatPresets()
   const preset = useMemo(() => {
     const index = Number(chatId)
@@ -61,7 +69,7 @@ function ChatRouteComponent() {
     isPending,
     isError,
     error,
-  } = useActiveChatKey(Boolean(preset && requiresActiveKey))
+  } = useActiveChatKey(Boolean(preset && requiresActiveKey), tokenId)
 
   const iframeSrc = useMemo(() => {
     if (!preset || !isWebLink) return ''

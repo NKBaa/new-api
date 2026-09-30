@@ -41,7 +41,8 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { fetchActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
+import { fetchChatKeyByTokenId } from '@/features/chat/hooks/use-active-chat-key'
+import { useChatKeyPrompt } from '@/features/chat/hooks/use-chat-key-prompt'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {
   chatLinkRequiresApiKey,
@@ -60,6 +61,8 @@ function ChatMenuItem({
   preset,
   active,
   loading,
+  requiresKey,
+  onPickKey,
   onOpen,
   onNavigate,
   preload,
@@ -67,11 +70,29 @@ function ChatMenuItem({
   preset: ChatPreset
   active: boolean
   loading: boolean
+  requiresKey: boolean
+  onPickKey: (preset: ChatPreset) => void
   onOpen: (preset: ChatPreset) => void | Promise<void>
   onNavigate: () => void
   preload?: false
 }) {
   if (preset.type === 'web') {
+    if (requiresKey) {
+      return (
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton
+            isActive={active}
+            render={<button type='button' />}
+            onClick={() => onPickKey(preset)}
+          >
+            <span className='min-w-0 flex-1 truncate whitespace-nowrap'>
+              {preset.name}
+            </span>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+      )
+    }
+
     return (
       <SidebarMenuSubItem>
         <SidebarMenuSubButton
@@ -80,6 +101,7 @@ function ChatMenuItem({
             <Link
               to='/chat/$chatId'
               params={{ chatId: preset.id }}
+              search={{}}
               preload={preload}
               onClick={onNavigate}
             />
@@ -96,6 +118,7 @@ function ChatMenuItem({
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton
+        render={<button type='button' />}
         onClick={() => {
           if (!loading) void onOpen(preset)
         }}
@@ -122,16 +145,30 @@ function ChatMenuItem({
 function DropdownPresetItem({
   preset,
   loading,
+  requiresKey,
+  onPickKey,
   onOpen,
 }: {
   preset: ChatPreset
   loading: boolean
+  requiresKey: boolean
+  onPickKey: (preset: ChatPreset) => void
   onOpen: (preset: ChatPreset) => void | Promise<void>
 }) {
   if (preset.type === 'web') {
+    if (requiresKey) {
+      return (
+        <DropdownMenuItem onClick={() => onPickKey(preset)}>
+          {preset.name}
+        </DropdownMenuItem>
+      )
+    }
+
     return (
       <DropdownMenuItem
-        render={<Link to='/chat/$chatId' params={{ chatId: preset.id }} />}
+        render={
+          <Link to='/chat/$chatId' params={{ chatId: preset.id }} search={{}} />
+        }
       >
         {preset.name}
       </DropdownMenuItem>
@@ -162,6 +199,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
   const { t } = useTranslation()
   const { chatPresets, serverAddress } = useChatPresets()
   const { state, isMobile, setOpenMobile } = useSidebar()
+  const { requestKey } = useChatKeyPrompt()
   const href = useLocation({ select: (location) => location.href })
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null)
   const loadingPresetIdRef = useRef<string | null>(null)
@@ -171,23 +209,21 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
     [chatPresets]
   )
 
-  const handleOpenExternal = useCallback(
-    async (preset: ChatPreset) => {
-      if (preset.type === 'web') return
-
-      const needsKey = chatLinkRequiresApiKey(preset.url)
+  /** Resolve the preset's link and hand it to the OS; `tokenId` is the picked key. */
+  const openPresetLink = useCallback(
+    async (preset: ChatPreset, tokenId: number | null) => {
       let activeKey: string | undefined
 
-      if (needsKey && loadingPresetIdRef.current) {
+      if (tokenId !== null && loadingPresetIdRef.current) {
         toast.info(t('Preparing your chat link, please try again in a moment.'))
         return
       }
 
-      if (needsKey) {
+      if (tokenId !== null) {
         loadingPresetIdRef.current = preset.id
         setLoadingPresetId(preset.id)
         try {
-          activeKey = await fetchActiveChatKey()
+          activeKey = await fetchChatKeyByTokenId(tokenId)
         } catch (error) {
           const message =
             error instanceof Error
@@ -205,7 +241,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
 
       const url = resolveChatUrl({
         template: preset.url,
-        apiKey: needsKey ? activeKey : undefined,
+        apiKey: activeKey,
         serverAddress,
       })
 
@@ -220,6 +256,20 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
       setOpenMobile(false)
     },
     [serverAddress, setOpenMobile, t]
+  )
+
+  const handleOpenExternal = useCallback(
+    (preset: ChatPreset) => {
+      if (preset.type === 'web') return
+
+      if (chatLinkRequiresApiKey(preset.url)) {
+        requestKey(preset, (tokenId) => void openPresetLink(preset, tokenId))
+        return
+      }
+
+      void openPresetLink(preset, null)
+    },
+    [openPresetLink, requestKey]
   )
 
   const normalizedHref = normalizeHref(href)
@@ -247,6 +297,8 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
                 key={preset.id}
                 preset={preset}
                 loading={loadingPresetId === preset.id}
+                requiresKey={chatLinkRequiresApiKey(preset.url)}
+                onPickKey={requestKey}
                 onOpen={handleOpenExternal}
               />
             ))}
@@ -279,6 +331,8 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
               preset={preset}
               active={normalizedHref === `/chat/${preset.id}`}
               loading={loadingPresetId === preset.id}
+              requiresKey={chatLinkRequiresApiKey(preset.url)}
+              onPickKey={requestKey}
               onOpen={handleOpenExternal}
               onNavigate={() => setOpenMobile(false)}
               preload={isMobile ? false : undefined}
