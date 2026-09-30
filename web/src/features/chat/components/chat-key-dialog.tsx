@@ -27,6 +27,7 @@ import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useEnabledChatKeys } from '@/features/chat/hooks/use-active-chat-key'
 import type { ChatPreset } from '@/features/chat/lib/chat-links'
 import { useChatKeyPreferenceStore } from '@/stores/chat-key-preference-store'
@@ -101,29 +102,36 @@ export function ChatKeyDialog(props: Props) {
     )
   } else {
     body = (
-      <RadioGroup
-        aria-label={t('API Key')}
-        value={selectedTokenId === null ? '' : String(selectedTokenId)}
-        onValueChange={(value) => setPickedTokenId(Number(value))}
-      >
-        {(enabledKeys ?? []).map((item) => (
-          <div key={item.id} className='flex items-center gap-2'>
-            <RadioGroupItem
-              value={String(item.id)}
-              id={`chat-key-${item.id}`}
-            />
+      <ScrollArea className='flex max-h-[340px] flex-col px-1 py-1 *:min-h-0'>
+        <RadioGroup
+          aria-label={t('API Key')}
+          value={selectedTokenId === null ? '' : String(selectedTokenId)}
+          onValueChange={(value) => setPickedTokenId(Number(value))}
+          className='gap-2.5'
+        >
+          {(enabledKeys ?? []).map((item) => (
             <Label
+              key={item.id}
               htmlFor={`chat-key-${item.id}`}
-              className='min-w-0 flex-1 cursor-pointer'
+              className='border-border/60 hover:bg-muted/40 hover:border-border has-data-[checked]:border-primary has-data-[checked]:bg-primary/5 has-data-[checked]:ring-primary flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-3.5 font-normal transition-all has-data-[checked]:ring-1'
             >
-              <span className='min-w-0 flex-1 truncate'>{item.name}</span>
-              <span className='text-muted-foreground font-mono text-xs'>
+              <div className='flex min-w-0 items-center gap-3'>
+                <RadioGroupItem
+                  value={String(item.id)}
+                  id={`chat-key-${item.id}`}
+                  className='[&>[data-slot=radio-group-indicator]>span]:bg-primary data-checked:border-primary after:hidden data-checked:bg-transparent dark:data-checked:bg-transparent'
+                />
+                <span className='truncate text-sm font-medium'>
+                  {item.name}
+                </span>
+              </div>
+              <code className='text-muted-foreground bg-muted/80 border-border/40 shrink-0 rounded-md border px-2.5 py-1 font-mono text-xs'>
                 sk-{item.key}
-              </span>
+              </code>
             </Label>
-          </div>
-        ))}
-      </RadioGroup>
+          ))}
+        </RadioGroup>
+      </ScrollArea>
     )
   }
 
@@ -139,7 +147,7 @@ export function ChatKeyDialog(props: Props) {
             })
           : undefined
       }
-      contentClassName='sm:max-w-md'
+      contentClassName='sm:max-w-lg'
       contentHeight='auto'
       footer={
         <>

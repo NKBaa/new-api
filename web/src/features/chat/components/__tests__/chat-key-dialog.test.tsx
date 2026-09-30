@@ -26,7 +26,16 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -50,6 +59,34 @@ const preset = {
 
 let queryClient: QueryClient
 const initialAuth = useAuthStore.getInitialState().auth
+
+// jsdom does not implement `Element.getAnimations`, which the Base UI
+// ScrollArea viewport calls after mount to re-measure thumb geometry. Without
+// it the picker's key list raises an unhandled TypeError that fails the run
+// even though every assertion passes.
+const originalGetAnimations = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'getAnimations'
+)
+
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  })
+})
+
+afterAll(() => {
+  if (originalGetAnimations) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      'getAnimations',
+      originalGetAnimations
+    )
+    return
+  }
+  Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations')
+})
 
 beforeEach(() => {
   get.mockReset()
@@ -166,5 +203,49 @@ describe('chat preset API key picker', () => {
     expect(await screen.findByText('Unable to load API keys')).toBeVisible()
     expect(screen.getByText('server unavailable')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('selects a key when the user clicks the masked key badge on that row', async () => {
+    respondWithKeys([
+      { id: 7, name: 'production', key: 'masked7', status: 1 },
+      { id: 9, name: 'staging', key: 'masked9', status: 1 },
+    ])
+    const onConfirm = await renderDialog()
+
+    expect(
+      await screen.findByRole('radio', { name: /staging/ })
+    ).toHaveAttribute('aria-checked', 'false')
+
+    await userEvent.click(screen.getByText('sk-masked9'))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Confirm & Launch' })
+    )
+
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(9))
+  })
+
+  it('scrolls a long key list inside the dialog instead of growing it', async () => {
+    respondWithKeys(
+      Array.from({ length: 12 }, (_, index) => ({
+        id: index + 1,
+        name: `token ${index + 1}`,
+        key: `masked${index + 1}`,
+        status: 1,
+      }))
+    )
+    await renderDialog()
+
+    const group = await screen.findByRole('radiogroup', { name: 'API Key' })
+    expect(group.querySelectorAll('[role="radio"]')).toHaveLength(12)
+
+    // Contract: the list lives in the scroll area viewport, and the scroll
+    // area root caps its own height, so the dialog does not grow past the
+    // viewport and no browser-native scrollbar appears on the options.
+    const viewport = group.closest('[data-slot="scroll-area-viewport"]')
+    expect(viewport).not.toBeNull()
+    expect(viewport?.contains(group)).toBe(true)
+    expect(viewport?.closest('[data-slot="scroll-area"]')).toHaveClass(
+      'max-h-[340px]'
+    )
   })
 })

@@ -27,7 +27,16 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { useChatKeyPrompt } from '@/features/chat/hooks/use-chat-key-prompt'
@@ -62,6 +71,34 @@ const protocolPreset: ChatPreset = {
 
 const initialAuth = useAuthStore.getInitialState().auth
 let queryClient: QueryClient
+
+// jsdom does not implement `Element.getAnimations`, which the Base UI
+// ScrollArea viewport calls after mount to re-measure thumb geometry. Without
+// it the picker's key list raises an unhandled TypeError that fails the run
+// even though every assertion passes.
+const originalGetAnimations = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'getAnimations'
+)
+
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  })
+})
+
+afterAll(() => {
+  if (originalGetAnimations) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      'getAnimations',
+      originalGetAnimations
+    )
+    return
+  }
+  Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations')
+})
 
 beforeEach(() => {
   get.mockReset()
