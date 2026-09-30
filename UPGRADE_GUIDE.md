@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`7420d157b`（业务十三 聊天预设选 Key，**当前 `latest` 镜像即由它构建**），其后均为纯文档提交 |
+| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`4234fb98e`（业务十三修订 B13-r1 选 Key 弹窗视觉与滚动，**当前 `latest` 镜像即由它构建**）；前一个代码提交为 `7420d157b`（业务十三选 Key 本体），二者之间均为纯文档提交 |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **151 文件** = 48 新增 + 103 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -33,8 +33,9 @@ d04c118c8 (官方基线)
                                             └── 309b9b4f6   (首页风格开关)
                                                     └── 88d694850   (文档)
                                                             └── af7b2a3af   (下拉框宽度修复)
-                                                                    └── 7420d157b   (业务十三 聊天预设选 Key = 最后一个代码提交)
-                                                                            └── …(此后均为纯文档提交)…
+                                                                            └── 7420d157b   (业务十三 聊天预设选 Key)
+                                                                                    └── 4234fb98e   (B13-r1 选 Key 弹窗视觉与滚动修订 = 最后一个代码提交)
+                                                                                            └── …(此后均为纯文档提交)…
 ```
 
 > 中间提交的完整清单、每个提交做了什么，见 §8（历史记录）。
@@ -308,7 +309,23 @@ AI 修改本仓库时必须同时满足：
   3. `ChatKeyDialog` 以 `key={preset?.id ?? 'none'}` 挂载，使 `pickedTokenId` 随预设切换而重置；`open` 同时作为 `useEnabledChatKeys` 的开关，弹窗不可见时不发列表请求。
   4. 本项**未**改动 `chat2link.tsx` 与 `data-table-row-actions.tsx`，二者仍取第一个启用令牌（用户明确划出范围）。
   5. **纯前端改动，未改任何 Go 文件**，不涉及数据库与计费。
-- **测试**：`chat-key-dialog.test.tsx` 4 例（只列启用令牌并默认确认第一个 / 确认所选项 / 无启用令牌时给「去创建」入口且确认禁用 / 列表失败显示 `Unable to load API keys` 与重试）；`chat-key-prompt.test.tsx` 4 例（确认后跳转带 `key` 参数 / 取消不改路由且不记忆 / 协议调用方拿到 tokenId 且**路由不变** / 取消不调用协议调用方）。
+- **测试**：`chat-key-dialog.test.tsx` 4 例（只列启用令牌并默认确认第一个 / 确认所选项 / 无启用令牌时给「去创建」入口且确认禁用 / 列表失败显示 `Unable to load API keys` 与重试）；`chat-key-prompt.test.tsx` 4 例（确认后跳转带 `key` 参数 / 取消不改路由且不记忆 / 协议调用方拿到 tokenId 且**路由不变** / 取消不调用协议调用方）。共 **2 文件 / 10 用例**。
+
+#### B13-r1 · 选 Key 弹窗的视觉与滚动修订（同一文件，`4234fb98e`）
+
+弹窗偏小、选项是「裸单选行」、Key 一多就出现 **Windows 原生灰滚动条**，且 Chromium 下选中态出现**黑色垂线**与**空心黑洞**。全部在 `chat-key-dialog.tsx` 内解决，**未改任何 Go / DDL / 数据库 / 公共组件**。
+
+1. **加宽**：`contentClassName` 由 `sm:max-w-md`（448px）改为 `sm:max-w-lg`。headless Chromium 实测 `dialogW=512`。
+2. **卡片式选项**：整行包成 `<Label>`，`p-3.5 rounded-xl border transition-all cursor-pointer`；未选中 `border-border/60 hover:bg-muted/40 hover:border-border`，选中 `has-data-[checked]:border-primary / bg-primary/5 / ring-1 / ring-primary`。密钥徽章改为 `<code>`，右对齐。实测选中卡片 `border=oklch(0.692 0.141 243.716)`、`bg=oklab(… / 0.05)`、`box-shadow` 含 `0 0 0 1px <primary>`；未选中 `border=oklab(0.93 0 0 / 0.6)`、`bg=transparent`、`shadow=none`。
+3. **黑色垂线 + 空心黑洞**：`RadioGroupItem` 补 `after:hidden`（干掉伪元素 —— 公共基类只写了 `after:absolute after:-inset-x-3 after:-inset-y-2` 而**没有 `content`**，浏览器按 `content:""` 计算出一个真实盒子，是垂线的来源）与 `[&>[data-slot=radio-group-indicator]>span]:bg-primary`（把圆点染回主色）。
+   - **⚠️ 必须同时补 `dark:data-checked:bg-transparent`**。公共基类同时有 `data-checked:bg-primary` 与 `dark:data-checked:bg-primary`，二者是不同 variant，`tailwind-merge` **只会删掉前者**，所以只按「`data-checked:bg-transparent`」写，暗色下 `dark:data-checked:bg-primary` 仍然胜出 —— 实测暗色 `ring=oklch(0.54 0.142 248.516)` 且 `dot` 与之同色，即**实心圆盘、圆点不可见**（就是那个「黑洞」）。补上后暗色 `ring=rgba(0,0,0,0)` + 圆点可见。这是 A/B 实测结论，不是推断。
+4. **原生滚动条**：列表包进公共 `ScrollArea`（其自带 `scrollbar-width:none` + `::-webkit-scrollbar{display:none}`）。
+   - **⚠️ 只写 `max-h-[340px]` 不生效**：`ScrollArea` 的 viewport 是 `size-full`（`height:100%`），挂在**只设了 `max-height`** 的根上时 viewport 不受约束。实测 `rootBox=340, vpClientH=620, vpScroll=620, scrolls=false` —— 完全不滚，内容直接溢出。`display:grid` 不写 `grid-template-rows` 同样失败（`vpClient=620, scrolls=false`）。
+   - 实测可用写法（都能滚）：`max-h + flex flex-col + 子元素 min-h-0`、`max-h + grid + grid-template-rows:minmax(0,1fr)`、固定 `height`、根与 viewport 都设 `max-h`。**本项目采用** `flex max-h-[340px] flex-col px-1 py-1 *:min-h-0`。
+   - 采用后的实测：条目少 → `saH=196 vpClient=188 vpScroll=188 internalScroll=false`（贴合内容）；条目多 → `saH=340 vpClient=332 vpScroll=584 internalScroll=true`。两种情况下 **`nativeGutter=0`、`scrollbarW=none`**，即无原生滚动条、无宽度跳动。
+   - 另外补了 `font-normal`：公共 `Label` 基类带 `font-medium`，不覆盖会把密钥名一起加粗。`data-checked:border-primary` 基类已有，保留为无害冗余。
+5. **jsdom 必须补 `getAnimations`**：Base UI 的 `ScrollAreaViewport` 挂载后会调 `viewport.getAnimations()`，jsdom 未实现，抛 `TypeError` 使 `vitest run` **退出码 1**（断言其实全过）。两个 chat 测试文件各加 `beforeAll` 桩（与仓库既有 `user-binding-dialog.test.tsx`、`channel-configuration.test.tsx` 做法一致）。
+6. **改动文件**：`chat-key-dialog.tsx`、`chat-key-dialog.test.tsx`、`chat-key-prompt.test.tsx`。`chat-key-dialog.test.tsx` 原 4 例**全部保留通过**，另加 2 例布局/交互回归（点卡片右侧密钥徽章可选中该行；长列表留在 `scroll-area-viewport` 内且根节点 `max-h-[340px]`）。
 - **自查命令**：`cd web && bun x vitest run src/features/chat`；`bun run typecheck`。
 
 ---
@@ -488,8 +505,8 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | OpenCode 渠道测试 | 51/51 PASS（`go test -v ./relay/channel/opencode/...`） |
 | 前端 `typecheck` | exit 0（含业务十三后重跑） |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
-| 前端 `src/features/chat` | **2 文件 / 8 用例**全过（业务十三新增） |
-| 前端全量 `vitest` | **174 文件 / 2157 用例**全过（首页开关后为 172/2149；本次新增 2 文件 8 例） |
+| 前端 `src/features/chat` | **2 文件 / 10 用例**全过（业务十三 8 例 + B13-r1 新增 2 例） |
+| 前端全量 `vitest` | **174 文件 / 2159 用例**全过（B13-r1 前为 174/2157） |
 | 改动前端文件 lint | 业务十三新增/改动的 9 个文件（不含路由）：**0 warning / 0 error**；第 10 个 `$chatId.tsx` 有 **1 error**（`react/iframe-missing-sandbox`），位于**官方原有行且基线即存在**（见 §6.2-6）。`bun run lint` 全仓基线仍为 66 warn / 182 err |
 | 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 54 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
 | 前端 i18n | 7 语言 × **6976** 键，0 缺失/多余/重复（业务十三新增 7 键 × 7 语言） |
