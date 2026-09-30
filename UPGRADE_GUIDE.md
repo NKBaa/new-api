@@ -11,11 +11,11 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`af7b2a3af`（首页风格开关 + 下拉框宽度修复），其后均为纯文档提交 |
+| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`7420d157b`（业务十三 聊天预设选 Key），其后均为纯文档提交 |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
-| 相对基线改动 | **141 文件** = 42 新增 + 99 修改 + **0 删除** |
+| 相对基线改动 | **151 文件** = 48 新增 + 103 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
-| 纯业务改动 | **137 文件** = 39 新增 + 98 修改 |
+| 纯业务改动 | **147 文件** = 45 新增 + 102 修改 |
 | 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
@@ -27,13 +27,14 @@
 d04c118c8 (官方基线)
     └── …官方中间提交…
             └── f9cabe103   (GitHub 侧既有提交，含旧版实现)
-                    └── d7a16aec2   (11 项业务移植，业务十二 OpenCode 渠道为后续追加)
+                    └── d7a16aec2   (当时的 11 项业务移植；业务十二 OpenCode、业务十三聊天选 Key 均为后续追加)
                             └── …(i18n 修复 / 规则可编辑 / OpenCode 渠道 等 ~20 个提交)…
                                     └── 66488a6fe   (文档)
                                             └── 309b9b4f6   (首页风格开关)
                                                     └── 88d694850   (文档)
-                                                            └── af7b2a3af   (下拉框宽度修复 = 最后一个代码提交)
-                                                                    └── …(此后均为纯文档提交)…
+                                                            └── af7b2a3af   (下拉框宽度修复)
+                                                                    └── 7420d157b   (业务十三 聊天预设选 Key = 最后一个代码提交)
+                                                                            └── …(此后均为纯文档提交)…
 ```
 
 > 中间提交的完整清单、每个提交做了什么，见 §8（历史记录）。
@@ -47,7 +48,7 @@ synth=$(git commit-tree "$tree" -p d04c118c8 -m "port 11 businesses")
 git format-patch --binary --stdout -1 "$synth" > businesses.patch
 ```
 
-仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2582 文件逐字节一致**。
+仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2588 文件逐字节一致**。
 
 ---
 
@@ -59,7 +60,7 @@ AI 修改本仓库时必须同时满足：
 |---|---|---|
 | 1 | **DB 零破坏**：0 `ALTER TABLE`、官方已有表 0 加字段 | 在 `*.go`/`*.sql` 的 **新增行**中搜索 DDL 关键字（文档文字里的「ALTER TABLE」不算） |
 | 2 | **零外部轮询进程**：无 sidecar、无 `os/exec`、无新增 `init()` 定时器 | 搜索 `os/exec`、`exec.Command`、`subprocess`、`sidecar` |
-| 3 | **只改业务所需**：与 12 项业务无关的官方代码 0 修改 | 逐文件核对 §3 清单；官方既有失败测试**不得**修改 |
+| 3 | **只改业务所需**：与 13 项业务无关的官方代码 0 修改 | 逐文件核对 §3 清单；官方既有失败测试**不得**修改 |
 
 **已被明确排除在改动范围外的**（前几轮曾误改，已全部回退，不得重新引入）：
 
@@ -73,7 +74,7 @@ AI 修改本仓库时必须同时满足：
 
 ---
 
-## 2. 十二项业务实现索引
+## 2. 十三项业务实现索引
 
 每项给出：**涉及文件** → **关键符号** → **存储位置** → **移植注意点**。
 
@@ -162,7 +163,7 @@ AI 修改本仓库时必须同时满足：
 
 ### B10 · 全链路 i18n
 - **文件**：`i18n/i18n.go`、`i18n/keys.go`、`i18n/locales/{en,zh-CN,zh-TW}.yaml`、`web/src/i18n/locales/{en,zh,zh-TW,ja,fr,ru,vi}.json`、`setting/console_setting/validation.go`
-- **规模**：后端 3 语言 × 265 键（其中 24 个 `sanitize.*` 为本次新增）；前端 7 语言 × **6969 键，0 缺失/0 多余/0 重复**
+- **规模**：后端 3 语言 × 265 键（其中 24 个 `sanitize.*` 为本次新增）；前端 7 语言 × **6976 键，0 缺失/0 多余/0 重复**（业务十三再 +7 键 × 7 语言）
 - **约定**：
   - 后端库 `nicksnyder/go-i18n/v2`，语言 en / zh-CN / zh-TW；
   - 前端 `i18next`，key **就是英文源串**（flat JSON）；
@@ -288,25 +289,47 @@ AI 修改本仓库时必须同时满足：
 - **测试**：`relay/channel/opencode/adaptor_test.go` 17 个用例覆盖通用 UA 替换（Cursor / Cherry Studio / NextChat / Python / curl / 空）、官方 UA 透传（含大小写与首尾空白）、client 名注入与不覆盖、session 生成/继承/优先级/空白回退/不覆盖既有、request id 唯一性与强制刷新、`c == nil` 与 `header == nil` 的健壮性、override 覆盖。前端在 `new-api-channel.test.ts` 覆盖下拉选项、排序、三个 Set、图标、默认 Base URL、Key 提示、预置模型与表单往返。
 - **自查命令**：`go test -v ./relay/channel/opencode/...`；`bun x vitest run src/features/channels`。
 
+### B13 · 聊天预设跳转前选择 API Key
+- **背景**：侧边栏「聊天」应用在跳转前会**静默取第一个启用的令牌**，用户有多个 Key 时无从选择，且客户端会拿到哪个 Key 不可预期。
+- **文件**：`web/src/features/chat/components/chat-key-dialog.tsx`(新)、`web/src/features/chat/components/chat-key-prompt-provider.tsx`(新)、`web/src/features/chat/hooks/use-chat-key-prompt.ts`(新)、`web/src/stores/chat-key-preference-store.ts`(新)、两个 `__tests__/`(新)、`web/src/components/layout/components/chat-presets-item.tsx`、`web/src/components/layout/components/authenticated-layout.tsx`、`web/src/features/chat/hooks/use-active-chat-key.ts`、`web/src/routes/_authenticated/chat/$chatId.tsx`、`web/src/i18n/locales/*.json`（7 语言）
+- **符号**：`ChatKeyDialog`、`ChatKeyPromptProvider`、`ChatKeyPromptHandle.requestKey(preset, onPick?)`、`useChatKeyPrompt()`、`useChatKeyPreferenceStore`（持久化键 `chat-key-preference`，只存 `lastTokenId`）、`fetchEnabledChatKeys()`、`fetchChatKeyByTokenId(tokenId)`
+- **两条启动路径**（同一个弹窗，确认后才启动）：
+  1. **`web` 预设需要 Key** → 弹窗 → 确认 → `navigate({to:'/chat/$chatId', params:{chatId}, search:{key: tokenId}})`；`$chatId.tsx` 用 `z.object({key: z.coerce.number().int().positive().optional().catch(undefined)})` 校验 search 参数，非法值一律降级为「无参数」而**不抛 `SearchParamError`**。
+  2. **自定义协议预设需要 Key**（cherry / aionui / deepchat / aqbot）→ 弹窗 → 确认 → 回传 tokenId 给调用方 → `fetchChatKeyByTokenId` → `resolveChatUrl` → `window.open`。通过 `requestKey(preset, onPick)` 的第二个参数复用同一弹窗（`ChatKeyPromptProvider` 内部按有无 `onPick` 分流：有则只回传、无则自己 `navigate`）。
+  - 不需要 Key 的纯外链预设仍然**直接跳转**，不弹窗。
+  - `/chat/{id}` 不带 `key` 参数时**回退为第一个启用令牌**（旧行为保留，直接贴链接仍可用）。
+- **存储**：**零新增字段**。弹窗列表读 `GET /api/token/?p=1&size=100`（后端把 `size` 钳到 100）筛选 `status=ENABLED`；**列表接口返回的是脱敏 Key**（`GetMaskedKey()`，保留首 4 末 4），完整密钥必须用 `POST /api/token/{id}/key` 换取（该接口有审计）。上次选择存 `localStorage` 的 `chat-key-preference`，是**全局单值**，不按预设区分。
+- **⚠️ 弹窗必须挂在侧边栏之外**：由 `authenticated-layout.tsx` 在 `SidebarProvider` 内、侧边栏**之外**渲染。若嵌进侧边栏，移动端抽屉 `SheetContent` 为 `z-60` 而 dialog overlay/popup 为 `z-50`，弹窗会被抽屉盖住且丢失遮罩。此外 `requestKey` 里必须先 `setOpenMobile(false)` 关掉移动端抽屉。
+- **⚠️ 无障碍坑**：`SidebarMenuSubButton` 的 `useRender` 默认渲染 `<a>`；只传 `onClick` 会得到一个**无 `href` 的锚点**，既不可聚焦也不带 `role=button`（实测 `FOCUSABLE=none`、`ROLE_BUTTON_COUNT=0`）。必须补 `render={<button type='button' />}`。业务十三的两处入口都已修。
+- **⚠️ TanStack Router 传参坑**：`buildLocation` 用 `dest.search === true` 判断是否继承当前 search，所以不带 `search` 的 `<Link>` 会**继承当前查询串**。跳转到 `/chat/{id}` 的 `Link` 必须显式写 `search={{}}`，否则可能把上一次的 `?key=` 带过去。
+- **移植注意**：
+  1. `chat-key-preference` **没有**登记进 `frontend-cache.ts` 的 `PRESERVED_LOCAL_STORAGE_KEYS`，因此 `FRONTEND_CACHE_VERSION` 变更时会连同其它键一起被清空（可接受：只丢一个「上次选择」）。
+  2. `useEnabledChatKeys(enabled)` 带 `meta:{errorToast:false}` —— 列表失败由弹窗内联渲染（`ErrorState` + 重试），**不要**改成全局 toast。
+  3. `ChatKeyDialog` 以 `key={preset?.id ?? 'none'}` 挂载，使 `pickedTokenId` 随预设切换而重置；`open` 同时作为 `useEnabledChatKeys` 的开关，弹窗不可见时不发列表请求。
+  4. 本项**未**改动 `chat2link.tsx` 与 `data-table-row-actions.tsx`，二者仍取第一个启用令牌（用户明确划出范围）。
+  5. **纯前端改动，未改任何 Go 文件**，不涉及数据库与计费。
+- **测试**：`chat-key-dialog.test.tsx` 4 例（只列启用令牌并默认确认第一个 / 确认所选项 / 无启用令牌时给「去创建」入口且确认禁用 / 列表失败显示 `Unable to load API keys` 与重试）；`chat-key-prompt.test.tsx` 4 例（确认后跳转带 `key` 参数 / 取消不改路由且不记忆 / 协议调用方拿到 tokenId 且**路由不变** / 取消不调用协议调用方）。
+- **自查命令**：`cd web && bun x vitest run src/features/chat`；`bun run typecheck`。
+
 ---
 
-## 3. 改动文件清单（137 业务文件）
+## 3. 改动文件清单（147 业务文件）
 
 ### 3.1 按层统计（实测）
 
 | 层 | 新增 | 修改 | 小计 |
 |---|---|---|---|
-| 前端 `web/src/` | 21 | 57 | **78** |
+| 前端 `web/src/` | 27 | 61 | **88** |
 | 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`） | 18 | 38 | **56** |
 | 其它（根目录文档、`VERSION`、workflow、`i18n/locales/*.yaml`） | 3 | 4 | 7 |
-| **合计** | **42** | **99** | **141** |
+| **合计** | **48** | **103** | **151** |
 
-其中**业务**文件 137 个（39 新增 + 98 修改），**非业务** 4 个（见 §0）。
+其中**业务**文件 147 个（45 新增 + 102 修改），**非业务** 4 个（见 §0）。业务十三（聊天选 Key）自身改了 17 个文件（6 新增 + 11 修改），全部是前端；由于其中 7 个 i18n locale 在业务十二阶段就已在改动清单内，**§3 的净增量是 +6 新增 / +4 修改**。
 
-Go 文件按目录细分的修改数：`controller` 10、`model` 6、`relay` 5、`router` 3、`service` 3、`setting` 3、`common` 2、`constant` 2、`i18n` 2、`relaykit` 2 = **38**。
+Go 文件按目录细分的修改数：`controller` 10、`model` 6、`relay` 5、`router` 3、`service` 3、`setting` 3、`common` 2、`constant` 2、`i18n` 2、`relaykit` 2 = **38**（**业务十三未改任何 Go 文件**）。
 前端修改数 Top：`web/src/features/**`、`web/src/i18n`、`web/src/lib`、`web/src/context`、`web/src/components`。
 
-### 3.2 新增文件（39 个业务文件）
+### 3.2 新增文件（45 个业务文件）
 
 ```
 common/error_rule.go
@@ -329,6 +352,11 @@ service/pseudo_error_detector.go
 service/pseudo_error_detector_test.go
 web/src/features/channels/components/__tests__/pseudo-200-i18n.test.tsx
 web/src/features/channels/lib/__tests__/pseudo-200-configuration.test.ts
+web/src/features/chat/components/__tests__/chat-key-dialog.test.tsx
+web/src/features/chat/components/__tests__/chat-key-prompt.test.tsx
+web/src/features/chat/components/chat-key-dialog.tsx
+web/src/features/chat/components/chat-key-prompt-provider.tsx
+web/src/features/chat/hooks/use-chat-key-prompt.ts
 web/src/features/home/__tests__/root-route.test.tsx
 web/src/features/landing-v2/**                      (11 文件)
 web/src/features/profile/__tests__/checkin-topup-gate.test.tsx
@@ -338,6 +366,7 @@ web/src/features/system-settings/request-policies/error-mapping-section.tsx
 web/src/features/usage-logs/lib/__tests__/model-mapping-visibility.test.ts
 web/src/lib/image-compress.ts
 web/src/routes/landing-v2.tsx
+web/src/stores/chat-key-preference-store.ts
 ```
 
 （另 3 个非业务**新增**文件：`.github/workflows/docker-image.yml`、`UPGRADE_GUIDE.md`、`README_CN.md`；`VERSION` 为修改。**文档只有两份**：本手册 + `README_CN.md`。仓库内旧文档 `PORTING_GUIDE.md`（「10 大业务」旧版）与原 `PORTING_NOTES.md`（移植过程记录）**均已删除** —— 后者的全部内容已合并进本手册 §8）
@@ -373,7 +402,7 @@ git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，结果与交付仓库 **2582 文件逐字节一致**（141 文件改动，含新增的 `relay/channel/opencode/` 包）。
+**已验证**：该补丁可干净应用，结果与交付仓库 **2588 文件逐字节一致**（151 文件改动，含新增的 `relay/channel/opencode/` 包与 `web/src/features/chat/components/`）。
 > 验证方式（可复现）：`git worktree add --detach` 出一个纯净 `d04c118c8` → `git apply --check`（exit 0）→ `git apply` → `git add -A && git write-tree`，得到的树哈希与交付仓库 `HEAD^{tree}` **相同**，再逐文件 SHA-256 比对 **0 差异**。
 > `git apply` 可能提示 5 行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
@@ -427,17 +456,18 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 - **端口/环境**：沿用官方；本仓库未新增必需环境变量。
 - **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（`v1.0.0-rc.40`）。**不要清空**。
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
-  - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 12 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
+  - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，实测约 16~19 分钟）。
-  - **✅ 当前 `latest` 已是最新交付代码**：对应提交 `af7b2a3af`（构建 run `36330275827`，success，16 分 26 秒）。摘要 `sha256:0af83356890efc2f5c5fdbf83ccfac9623aa82a40c89aaa11ad5ced3c5ef2869`，与标签 `sha-af7b2a3af987ed6080e50213fdc3dca4fbb0938e` **完全一致**（上一版 `sha-88d694850…` 为 `sha256:54d1f0d27edd6950…`，已确认被替换）。**首页风格开关与下拉框宽度修复都在里面。**
-  - **验证方法（可复现）**：`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪。
+  - **✅ 上一次确认的 `latest`**：对应提交 `af7b2a3af`（构建 run `36330275827`，success，16 分 26 秒）。摘要 `sha256:0af83356890efc2f5c5fdbf83ccfac9623aa82a40c89aaa11ad5ced3c5ef2869`，与标签 `sha-af7b2a3af987ed6080e50213fdc3dca4fbb0938e` **完全一致**。
+  - **本次 `7420d157b`（业务十三）触发的构建**：run `36660495979`（run number 76）。**构建完成前不要声称 `latest` 已含业务十三** —— 请用下面的方法自行核对摘要与标签。
+  - **验证方法（可复现）**：`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；侧边栏点聊天应用弹出选 Key 窗口 → 业务十三已就绪（**这是唯一能区分新旧镜像的前端交互**，因为业务十三没有后端接口变化）。
   - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
     - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
     - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
-    - 相关实例：`af7b2a3af`（宽度修复，改代码）→ run `36330275827` success。
+    - 相关实例：`af7b2a3af`（宽度修复，改代码）→ run `36330275827` success；`7420d157b`（业务十三，改代码）→ run `36660495979`。
   - **镜像公开性**：已实测**匿名可拉**（无需 `docker login`）。
-  - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 12 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
+  - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 13 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
 
 ---
 
@@ -456,11 +486,13 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 脱敏 + 错误映射 | `go test ./service/ -run "Pseudo\|Sanitiz\|ErrorMapping"` ok；24 个 sanitize key × en/zh-CN/zh-TW 实际加载 YAML 校验通过 |
 | `model` 全量 | `go test ./model/ -count=1` ok |
 | OpenCode 渠道测试 | 51/51 PASS（`go test -v ./relay/channel/opencode/...`） |
-| 前端 `typecheck` | exit 0 |
+| 前端 `typecheck` | exit 0（含业务十三后重跑） |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
-| 前端全量 `vitest` | **172 文件 / 2149 用例**全过（开关改动前为 170 文件 / 2136 用例，连续 2 次全过；本次新增 13 例） |
-| 改动前端文件 lint | 0 error（1 warning 位于**官方原有行**：`stores/system-config-store.ts` 的 `...(newConfig.currency ?? {})`） |
-| 前端 i18n | 7 语言 × 6969 键，0 缺失/多余/重复 |
+| 前端 `src/features/chat` | **2 文件 / 8 用例**全过（业务十三新增） |
+| 前端全量 `vitest` | **174 文件 / 2157 用例**全过（首页开关后为 172/2149；本次新增 2 文件 8 例） |
+| 改动前端文件 lint | 业务十三新增/改动的 9 个文件（不含路由）：**0 warning / 0 error**；第 10 个 `$chatId.tsx` 有 **1 error**（`react/iframe-missing-sandbox`），位于**官方原有行且基线即存在**（见 §6.2-6）。`bun run lint` 全仓基线仍为 66 warn / 182 err |
+| 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 54 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
+| 前端 i18n | 7 语言 × **6976** 键，0 缺失/多余/重复（业务十三新增 7 键 × 7 语言） |
 | 后端 i18n | 3 语言 × 265 键 |
 | **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
 | **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |
@@ -475,6 +507,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
    - 判定依据：这些失败**全部发生在 cleanup 阶段**（子用例的断言本身已通过），且**在纯净基线上逐一复现**。
 4. `bun run lint` 基线 66 warn / 182 err（多在 `scripts/sync-i18n.mjs`）。
 5. 前端全量偶发 1 例 jsdom 时序抖动（`model-mapping-editor` / `marketplace-install-dialog`），单跑 3~5 次必过。
+6. `web/src/routes/_authenticated/chat/$chatId.tsx` 的 `<iframe>` 无 `sandbox` 属性 → `react/iframe-missing-sandbox` error。**官方基线即存在**（业务十三改动前该文件同样报此错），因为聊天预设需要 `allow='camera; microphone'` 的宽权限，加 `sandbox` 会破坏这些客户端。**不要修**。（该规则未列入 `.oxlintrc.json` 的 override，`src/routes/**` 只关掉了 `react/only-export-components`。）
 
 ### 6.3 未验证项（如实声明）
 
@@ -526,7 +559,7 @@ go test ./service/ -run 'TestGetChannelDefaultPseudo200RulesRoundTrip'
 grep -A2 'func ShouldDisableChannel' service/channel.go | grep ErrorCodePromptBlocked
 
 # 改动规模
-git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=42 M=99 D=0（含未提交的开关改动）
+git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=48 M=103 D=0
 
 # 首页风格开关：默认必须是 classic，且非法值不落库
 grep -n 'HomePageStyle' model/option.go controller/misc.go
@@ -560,7 +593,7 @@ go test ./controller/ ./model/ -count=1 -timeout 60m -v \
 | 交付物 | 路径 |
 |---|---|
 | 完整源码仓库 | `new-api-official-11biz/` |
-| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（约 836 KB；**每次改文档都会变，以文件实际大小为准**） |
+| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（**911165 字节 / 约 890 KB**，含 151 个改动文件）。注意：它由 `HEAD^{tree}` 与 `d04c118c8` 的差集生成，**连本手册本身也在补丁里**，所以任何一次改动（含改文档）都会让它变；**以文件实际大小为准**，不要引用固定数字 |
 | 技术手册（唯一权威，AI 用） | `UPGRADE_GUIDE.md`（本文件） |
 | 白话说明（非技术人员） | `README_CN.md` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
@@ -612,6 +645,7 @@ d1ef7cc56  record the MySQL test results and the streaming pseudo-200 limit
 309b9b4f6  feat(home): add a system setting to choose the home page style
 88d694850  record the home page style switch and refresh the figures
 af7b2a3af  fix(settings): stop the home page style dropdown from clipping its labels
+7420d157b  feat(chat): let users pick the API key before launching a chat preset
 （此后为纯文档提交，不再逐条列出）
 ```
 
@@ -760,6 +794,7 @@ else if e.StatusCode > 0                   { claudeType = StandardClaudeType(e.S
 9. **新增 OpenCode 渠道类型 64**：仅新增一个渠道类型取值，**不影响任何存量渠道**；未配置该类型时不产生任何行为变化。
 10. **首页风格改为后台可切换，默认仍是官方首页**：根路由 `/` 由 `options.HomePageStyle` 决定（`classic` 默认 = 官方首页；`landing-v2` = OpenRouter 风格）。**未设置过该选项的存量站点行为完全不变**（实测：删掉该行并重启，`/api/status` 仍返回 `classic`）。选项非法时 `validateOptionValue` 直接拒绝且不落库；`options` 表结构不变。
 11. **首页风格下拉框显式声明宽度**：官方 `SelectTrigger` 是 `w-fit`、`SelectContent` 是 `w-(--anchor-width)` + `overflow-x-hidden`，组合后弹窗宽度被锁死为「当前选中项」的宽度，选中较短的官方首页时会把第二项文案裁掉（真实浏览器实测 en 34.8px / fr 44.7px / ja 36.4px）。修法是触发框加 `w-full sm:w-[240px]`、弹窗加 `w-auto min-w-(--anchor-width)`，**只影响这一个控件**；`min-w-[240px]` 不够（俄语 268px 仍裁 28.3px），故未采用。
+12. **聊天预设跳转前不再静默取第一个令牌**：侧边栏点聊天应用时会先弹出选 Key 窗口，确认后才启动。这对用户是**可见的行为变化**（多了一步），但只有「需要 Key 的预设」才有弹窗，纯外链预设仍然直接跳转；`/chat/{id}` 不带 `key` 参数的老链接行为不变（仍回退第一个启用令牌）。同时修掉了协议预设那一行在键盘/读屏下不可操作的问题。**纯前端改动，0 DDL、0 计费影响。**
 
 ---
 
@@ -773,3 +808,5 @@ else if e.StatusCode > 0                   { claudeType = StandardClaudeType(e.S
 6. 行为变更必须补测试（本仓库 `web/AGENTS.md` §3.14 强制要求）；测试不得为空洞——需能通过变异测试验证。
 7. 官方问题一律**不改**，只在本文档 §6.2 记录。
 8. **文档只有两份**：本手册（AI / 程序员）+ `README_CN.md`（非技术人员）。**不要**再新增 `PORTING_NOTES.md` 之类的第三份移植记录 —— 历史与背景写进 §8。
+9. **业务十三（聊天选 Key）不要去「统一」另外两个入口**：`chat2link.tsx` 与 `data-table-row-actions.tsx` 仍取第一个启用令牌，这是**用户明确划定**的范围，不是遗漏。
+10. **不要**给 `$chatId.tsx` 的 `<iframe>` 加 `sandbox`（会破坏聊天客户端的摄像头/麦克风权限），该 lint error 是官方基线既有的，见 §6.2-6。
