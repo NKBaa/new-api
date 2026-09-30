@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
-| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`7420d157b`（业务十三 聊天预设选 Key），其后均为纯文档提交 |
+| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`7420d157b`（业务十三 聊天预设选 Key，**当前 `latest` 镜像即由它构建**），其后均为纯文档提交 |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **151 文件** = 48 新增 + 103 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -458,14 +458,14 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
-- **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64，实测约 16~19 分钟）。
-  - **✅ 上一次确认的 `latest`**：对应提交 `af7b2a3af`（构建 run `36330275827`，success，16 分 26 秒）。摘要 `sha256:0af83356890efc2f5c5fdbf83ccfac9623aa82a40c89aaa11ad5ced3c5ef2869`，与标签 `sha-af7b2a3af987ed6080e50213fdc3dca4fbb0938e` **完全一致**。
-  - **本次 `7420d157b`（业务十三）触发的构建**：run `36660495979`（run number 76）。**构建完成前不要声称 `latest` 已含业务十三** —— 请用下面的方法自行核对摘要与标签。
-  - **验证方法（可复现）**：`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；侧边栏点聊天应用弹出选 Key 窗口 → 业务十三已就绪（**这是唯一能区分新旧镜像的前端交互**，因为业务十三没有后端接口变化）。
+- **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64）。
+  - **✅ 当前 `latest` 就是最新交付代码**：对应提交 `7420d157b`（业务十三），构建 run `36660495979`（run number 76），**success**，`Build and push` 1411 秒 / 整任务 25 分 56 秒。摘要 `sha256:f7cbaac7f42eb14c9c57366b87c6f5a16351d02977690f5fcce3ca63f4e0b439`，与标签 `sha-7420d157b485a0d7e2800afdd3241c32e1e3a68b` **完全一致**（上一版 `af7b2a3af` 为 `sha256:0af83356890efc2f5c5fdbf83ccfac9623aa82a40c89aaa11ad5ced3c5ef2869`，已确认被替换）。**业务十三 + 首页风格开关 + 下拉框宽度修复都在里面。**
+  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪。
+  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `f7cbaac7…`）。
   - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
     - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
     - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
-    - 相关实例：`af7b2a3af`（宽度修复，改代码）→ run `36330275827` success；`7420d157b`（业务十三，改代码）→ run `36660495979`。
+    - 相关实例：`af7b2a3af`（宽度修复，改代码）→ run `36330275827` success；`7420d157b`（业务十三，改代码）→ run `36660495979` success。**反向实例**：`2d59bcee7`（本次的纯文档同步提交）push 后，Actions 里**没有新增任何 run**，最新一条仍然是 `7420d157b` 的 run#76 —— 这同时说明了「文档更新不会白白消耗一次 26 分钟的镜像构建」，也说明了**本手册里的镜像摘要不会因为改文档而失效**。
   - **镜像公开性**：已实测**匿名可拉**（无需 `docker login`）。
   - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 13 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
 
@@ -593,7 +593,7 @@ go test ./controller/ ./model/ -count=1 -timeout 60m -v \
 | 交付物 | 路径 |
 |---|---|
 | 完整源码仓库 | `new-api-official-11biz/` |
-| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（**911165 字节 / 约 890 KB**，含 151 个改动文件）。注意：它由 `HEAD^{tree}` 与 `d04c118c8` 的差集生成，**连本手册本身也在补丁里**，所以任何一次改动（含改文档）都会让它变；**以文件实际大小为准**，不要引用固定数字 |
+| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（约 890 KB，含 151 个改动文件）。注意：它由 `HEAD^{tree}` 与 `d04c118c8` 的差集生成，**连本手册与 `README_CN.md` 本身也在补丁里**，所以任何一次改动（含改文档）都会让它变；**以文件实际大小为准，不要引用固定字节数**。重新生成的命令见 §0 的 `git commit-tree` 代码块 |
 | 技术手册（唯一权威，AI 用） | `UPGRADE_GUIDE.md`（本文件） |
 | 白话说明（非技术人员） | `README_CN.md` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
