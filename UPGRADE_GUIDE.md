@@ -485,7 +485,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 ## 5. 部署要点
 
 - **端口/环境**：沿用官方；本仓库未新增必需环境变量。
-- **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（`v1.0.0-rc.40`）。**不要清空**。
+- **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（**当前 `v1.0.0-rc.41`**）。`.github/workflows/docker-image.yml` 的 `paths` **包含 `VERSION`**，所以改它就会触发一次镜像构建。**不要清空**。版本号与代码的关系：`v1.0.0-rc.41` 对应官方提交 `2035a82ae`，而我们已含 `2035a82ae` **及其后 6 个官方提交**，因此 `rc.41` 是"不低于"实际代码的准确说法；后续再同步官方时**记得同步抬高这个号**。
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
@@ -631,7 +631,7 @@ go test ./controller/ ./model/ -count=1 -timeout 60m -v \
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 
 - 仓库内旧文档 `PORTING_GUIDE.md`（称「10 大业务、99 文件」，未涵盖业务十一）**已删除**，唯一权威替代品就是本手册。
-- **已推送 GitHub**：全程 **fast-forward**（非强推）、**0 删除**；并**保留** GitHub 侧既有文件 `.github/workflows/docker-image.yml`（push 到 `main` 自动构建镜像）、`UPGRADE_GUIDE.md`、`VERSION`（`v1.0.0-rc.40`）。`main` 与本地 `HEAD` 一致（用 `git log --oneline github/main..HEAD` 应为空来自查）。
+- **已推送 GitHub**：全程 **fast-forward**（非强推）、**0 删除**；并**保留** GitHub 侧既有文件 `.github/workflows/docker-image.yml`（push 到 `main` 自动构建镜像）、`UPGRADE_GUIDE.md`、`VERSION`（现为 `v1.0.0-rc.41`）。`main` 与本地 `HEAD` 一致（用 `git log --oneline github/main..HEAD` 应为空来自查）。
 - 本地旧版本（`new-api-clean/`、`node_modules/` 残留、3 个旧 `.patch`）已按要求清理，清理前全部内容已归档（见下表，零额外磁盘占用）。
 - **历史事故备忘**：原 `PORTING_NOTES.md` 一度被 `Get-Content -Raw` 以 GBK 误读 UTF-8 再写回，全角标点不可逆丢失；当时用 GBK 逆向解码恢复了全部结构、代码、命令与事实。该文件现已并入本手册，**同样的事故不会再影响独立副本（因为副本已不存在）**，但**教训仍然有效：不要用 PowerShell 直接读写本仓库的 UTF-8 中文文档**，改用 `write`/`edit` 工具或 `bun` 脚本。
 
