@@ -476,13 +476,13 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64）。
-  - **✅ 当前 `latest` 就是最新交付代码**：对应提交 `7420d157b`（业务十三），构建 run `36660495979`（run number 76），**success**，`Build and push` 1411 秒 / 整任务 25 分 56 秒。摘要 `sha256:f7cbaac7f42eb14c9c57366b87c6f5a16351d02977690f5fcce3ca63f4e0b439`，与标签 `sha-7420d157b485a0d7e2800afdd3241c32e1e3a68b` **完全一致**（上一版 `af7b2a3af` 为 `sha256:0af83356890efc2f5c5fdbf83ccfac9623aa82a40c89aaa11ad5ced3c5ef2869`，已确认被替换）。**业务十三 + 首页风格开关 + 下拉框宽度修复都在里面。**
-  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪。
-  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `f7cbaac7…`）。
+  - **✅ 当前 `latest` 就是最新交付代码**：对应提交 `4234fb98e`（B13-r1 选 Key 弹窗修订），构建 run `36694962074`（run number 77），**success**，`Build and push` 1265 秒 / 整任务 22 分 03 秒。摘要 `sha256:3a45914f0042b7ea6d101f910ab0d71fed69a4dd42574ba5144ba0ad87d86215`，与标签 `sha-4234fb98ecefae2fde238d3d46b836fbe7b8eddf` **完全一致**（上一版 `7420d157b` 为 `sha256:f7cbaac7f42eb14c9c57366b87c6f5a16351d02977690f5fcce3ca63f4e0b439`，已确认被替换）。**13 项业务 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订都在里面。**
+  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪。
+  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `3a45914f…`）。
   - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
     - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
     - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
-    - 相关实例：`af7b2a3af`（宽度修复，改代码）→ run `36330275827` success；`7420d157b`（业务十三，改代码）→ run `36660495979` success。**反向实例**：`2d59bcee7`（本次的纯文档同步提交）push 后，Actions 里**没有新增任何 run**，最新一条仍然是 `7420d157b` 的 run#76 —— 这同时说明了「文档更新不会白白消耗一次 26 分钟的镜像构建」，也说明了**本手册里的镜像摘要不会因为改文档而失效**。
+    - 相关实例：`af7b2a3af`（宽度修复，改代码）→ run `36330275827` success；`7420d157b`（业务十三，改代码）→ run `36660495979` success；`4234fb98e`（B13-r1，改代码）→ run `36694962074` success。**反向实例**：`2d59bcee7`（纯文档同步提交）push 后，Actions 里**没有新增任何 run**；随后同一类操作再次验证 —— B13-r1 的**代码**提交 `4234fb98e` 触发 run#77，而其后的**文档**提交 `5832ed958` push 后**没有新增 run**，最新一条仍是 run#77。这同时说明了「文档更新不会白白消耗一次 20 多分钟的镜像构建」，也说明了**本手册里的镜像摘要不会因为改文档而失效**。
   - **镜像公开性**：已实测**匿名可拉**（无需 `docker login`）。
   - **⚠️ 部署时必须改镜像名**：仓库自带的 `docker-compose.yml` 是**官方原版未改动**，第 19 行仍是 `image: calciumion/new-api:latest`（官方上游镜像）。直接 `docker compose up -d` 会拉到**没有我们 13 项功能的官方版**。必须改成 `ghcr.io/nkbaa/new-api:latest`。
 
@@ -812,6 +812,7 @@ else if e.StatusCode > 0                   { claudeType = StandardClaudeType(e.S
 10. **首页风格改为后台可切换，默认仍是官方首页**：根路由 `/` 由 `options.HomePageStyle` 决定（`classic` 默认 = 官方首页；`landing-v2` = OpenRouter 风格）。**未设置过该选项的存量站点行为完全不变**（实测：删掉该行并重启，`/api/status` 仍返回 `classic`）。选项非法时 `validateOptionValue` 直接拒绝且不落库；`options` 表结构不变。
 11. **首页风格下拉框显式声明宽度**：官方 `SelectTrigger` 是 `w-fit`、`SelectContent` 是 `w-(--anchor-width)` + `overflow-x-hidden`，组合后弹窗宽度被锁死为「当前选中项」的宽度，选中较短的官方首页时会把第二项文案裁掉（真实浏览器实测 en 34.8px / fr 44.7px / ja 36.4px）。修法是触发框加 `w-full sm:w-[240px]`、弹窗加 `w-auto min-w-(--anchor-width)`，**只影响这一个控件**；`min-w-[240px]` 不够（俄语 268px 仍裁 28.3px），故未采用。
 12. **聊天预设跳转前不再静默取第一个令牌**：侧边栏点聊天应用时会先弹出选 Key 窗口，确认后才启动。这对用户是**可见的行为变化**（多了一步），但只有「需要 Key 的预设」才有弹窗，纯外链预设仍然直接跳转；`/chat/{id}` 不带 `key` 参数的老链接行为不变（仍回退第一个启用令牌）。同时修掉了协议预设那一行在键盘/读屏下不可操作的问题。**纯前端改动，0 DDL、0 计费影响。**
+13. **选 Key 弹窗的视觉变化（B13-r1，`4234fb98e`）**：弹窗由 448px 加宽到 512px；选项从「裸单选行」改为**整行可点的卡片**，选中行整行高亮（主色描边 + 淡蓝底 + 1px 主色环），密钥以等宽徽章右对齐展示；Key 超过约 6 个时列表区**固定 340px 内部滚动**，不出现浏览器原生滚动条、不产生宽度跳动；单选框的选中态由「实心黑盘」修正为「主色描边 + 实心主色圆点」（暗色模式同样修正）。**仍为纯前端改动，只碰 `chat-key-dialog.tsx` 与两个测试文件，0 DDL、0 Go 改动。**
 
 ---
 
@@ -827,3 +828,5 @@ else if e.StatusCode > 0                   { claudeType = StandardClaudeType(e.S
 8. **文档只有两份**：本手册（AI / 程序员）+ `README_CN.md`（非技术人员）。**不要**再新增 `PORTING_NOTES.md` 之类的第三份移植记录 —— 历史与背景写进 §8。
 9. **业务十三（聊天选 Key）不要去「统一」另外两个入口**：`chat2link.tsx` 与 `data-table-row-actions.tsx` 仍取第一个启用令牌，这是**用户明确划定**的范围，不是遗漏。
 10. **不要**给 `$chatId.tsx` 的 `<iframe>` 加 `sandbox`（会破坏聊天客户端的摄像头/麦克风权限），该 lint error 是官方基线既有的，见 §6.2-6。
+11. **用 `ScrollArea` 时不要只写 `max-h-*`**：其 viewport 是 `size-full`，根节点只设 `max-height` 不会约束它，内容会直接溢出而不滚动（实测 `vpClient=620 vpScroll=620 scrolls=false`）。必须同时给出可传递的高度约束，本仓库采用 `flex flex-col` + `*:min-h-0`（等价写法见 B13-r1 第 4 条）。改动滚动/尺寸时须按 `web/AGENTS.md` §3.14 补布局回归测试，断言滚动容器与高度上限等**稳定契约**，不要快照整串 class。
+12. **改 `RadioGroupItem` 的选中背景要连暗色一起覆盖**：基类同时有 `data-checked:bg-primary` 与 `dark:data-checked:bg-primary`，`tailwind-merge` 只消除同 variant 冲突，只写 `data-checked:bg-transparent` 在暗色下会失效并渲染成实心圆盘。
