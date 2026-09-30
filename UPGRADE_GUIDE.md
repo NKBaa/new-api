@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| 官方基线 | `d04c118c8`（= `upstream/main`，涵盖 `v1.0.0-rc.40`） |
+| 官方基线 | `56758edf9`（同步时的 `upstream/main`）。**上一个基线是 `d04c118c8`**，二者之间官方有 20 个提交；本次已把这 20 个提交合并进来（见 §0.2） |
 | 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`4234fb98e`（业务十三修订 B13-r1 选 Key 弹窗视觉与滚动，**当前 `latest` 镜像即由它构建**）；前一个代码提交为 `7420d157b`（业务十三选 Key 本体），二者之间均为纯文档提交 |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **151 文件** = 48 新增 + 103 修改 + **0 删除** |
@@ -21,7 +21,9 @@
 
 ### 0.1 提交拓扑（重要，影响移植方式）
 
-交付提交的父提交是 GitHub 上的 `f9cabe103`（**不是**官方基线 `d04c118c8`）：
+交付提交的父提交链一路回溯到 `f9cabe103`，并在 `6fab4aa6c` 处并入官方 `56758edf9`（**注意：`d04c118c8` 不是 `f9cabe103` 的祖先，二者是官方 main 上的兄弟链** —— `f9cabe103` 的父是 `0aec08fee`，而 `d04c118c8` 从同一点继续往下走）：
+
+```
 
 ```
 d04c118c8 (官方基线)
@@ -36,20 +38,32 @@ d04c118c8 (官方基线)
                                                                             └── 7420d157b   (业务十三 聊天预设选 Key)
                                                                                     └── 4234fb98e   (B13-r1 选 Key 弹窗视觉与滚动修订 = 最后一个代码提交)
                                                                                             └── …(此后均为纯文档提交)…
+                                                                                                    └── 6fab4aa6c   (merge: 同步官方 20 个提交到 56758edf9)
+                                                                                                            └── …(此后均为纯文档提交)…
 ```
+
+### 0.2 与官方同步（`6fab4aa6c` merge）
+
+交付仓库现在是**官方 `56758edf9` 的直接后代**：上游在 `d04c118c8` 之后又推了 **20 个提交 / 189 个文件**，本次全部并入（`merge` 提交有两个父：`b306070fe` 与 `56758edf9`）。
+
+- **零冲突**。我们的 151 文件差集与官方 189 文件里**只有 21 个文件重叠**，git 全部自动合并：`model/main.go` 的 `AutoMigrate` 列表（官方加 `&UserAccessToken{}`、我们加 `&AffiliateReward{}`，位置相邻但不同行）、`controller/user.go` / `model/option.go` / `router/api-router.go` / `router/channel-router.go` / `relay/common/relay_info.go` / `i18n/keys.go`（双方在不同函数里各加各的），以及 7 个前端 locale JSON（官方 +102 键、我们 +198 键，**没有同名键**，合并后 7062 键、0 重复）。
+- **官方本次带来的新东西**：作用域访问令牌（替换原「系统访问令牌」）、管理员用户管理的二次验证、注册角色白名单校验、`moejs` 取代 `sobek` 作为插件运行时、Seedream 5.0 系列、渠道表刷新按钮、Claude `output_config` 修复、若干 i18n 与主题修复。依赖变化（`go.mod`/`go.sum`）由官方一侧带入，**我们没有贡献任何依赖改动**。
+- **官方本次删除的 3 个文件**：`web/src/features/security/{components/access-token-card.tsx, components/__tests__/access-token-card.test.tsx, hooks/use-access-token.ts}`。我们从未触碰它们，删除后**无残留引用**。
+- **合并后验证（实测）**：`go build` + `go vet` 覆盖 80 个非 root 包 exit 0；`relaykit` 独立构建（`GOWORK=off`）exit 0；56 个改动的 Go 文件 `gofmt` 全 clean；`go test ./model/ -count=1` ok；前端 `typecheck` exit 0、生产构建 exit 0、`vitest` **181 文件 / 2209 用例全过**；**SQLite 端到端**：冷启动建出 198 个 schema 对象、`/api/status` 返回 `home_page_style=classic`，随后**两次重启 DDL 语句均为 0**、schema 指纹与冷启动后**完全一致**、探针数据仍在。
+- **未验证**：MySQL 与 PostgreSQL 未在本机实测（见 §6.1 的说明）。本次改动未引入任何方言特有 SQL；但 `AutoMigrate` 列表是双方向同一处追加，升级到真实 MySQL/PG 时**建议先跑一遍 §6.3 的数据库矩阵命令**再上生产。
 
 > 中间提交的完整清单、每个提交做了什么，见 §8（历史记录）。
 
-**因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动。** 若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成：
+**因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动**（合并后还会包含官方 20 个提交，共 319 文件）。若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成，**父提交用当前官方基线 `56758edf9`**：
 
 ```bash
-# 合成一个父为 d04c118c8、树与 HEAD 相同的虚拟提交
+# 合成一个父为 56758edf9、树与 HEAD 相同的虚拟提交
 tree=$(git rev-parse 'HEAD^{tree}')
-synth=$(git commit-tree "$tree" -p d04c118c8 -m "port 11 businesses")
+synth=$(git commit-tree "$tree" -p 56758edf9 -m "port 11 businesses")
 git format-patch --binary --stdout -1 "$synth" > businesses.patch
 ```
 
-仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `d04c118c8`，结果与交付仓库 **2588 文件逐字节一致**。
+仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `56758edf9`，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（`dd6c0b9c1…`），151 个改动文件。
 
 ---
 
@@ -414,14 +428,14 @@ web/src/stores/chat-key-preference-store.ts
 
 ```bash
 git clone <官方仓库> new-api && cd new-api
-git checkout d04c118c8                 # 官方基线
+git checkout 56758edf9                 # 官方基线（同步时的 upstream/main）
 git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，结果与交付仓库 **2588 文件逐字节一致**（151 文件改动，含新增的 `relay/channel/opencode/` 包与 `web/src/features/chat/components/`）。
-> 验证方式（可复现）：`git worktree add --detach` 出一个纯净 `d04c118c8` → `git apply --check`（exit 0）→ `git apply` → `git add -A && git write-tree`，得到的树哈希与交付仓库 `HEAD^{tree}` **相同**，再逐文件 SHA-256 比对 **0 差异**。
-> `git apply` 可能提示 5 行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
+**已验证**：该补丁可干净应用，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（`dd6c0b9c1…`，151 文件改动，含新增的 `relay/channel/opencode/` 包与 `web/src/features/chat/components/`）。
+> 验证方式（可复现）：`git worktree add --detach 56758edf9` → `git apply --check`（exit 0）→ `git apply` → `git add -A && git write-tree`，树哈希与交付仓库 `HEAD^{tree}` 相同，`git status --porcelain` 恰好 151 条。
+> `git apply` 可能提示几行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
 ### 4.2 方式 B：变基到更新的官方版本
 
@@ -503,17 +517,18 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 脱敏 + 错误映射 | `go test ./service/ -run "Pseudo\|Sanitiz\|ErrorMapping"` ok；24 个 sanitize key × en/zh-CN/zh-TW 实际加载 YAML 校验通过 |
 | `model` 全量 | `go test ./model/ -count=1` ok |
 | OpenCode 渠道测试 | 51/51 PASS（`go test -v ./relay/channel/opencode/...`） |
-| 前端 `typecheck` | exit 0（含业务十三后重跑） |
+| 前端 `typecheck` | exit 0（含业务十三与官方同步后重跑） |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端 `src/features/chat` | **2 文件 / 10 用例**全过（业务十三 8 例 + B13-r1 新增 2 例） |
-| 前端全量 `vitest` | **174 文件 / 2159 用例**全过（B13-r1 前为 174/2157） |
+| 前端全量 `vitest` | **181 文件 / 2209 用例**全过（合并官方 20 提交后；B13-r1 前为 174/2157） |
 | 改动前端文件 lint | 业务十三新增/改动的 9 个文件（不含路由）：**0 warning / 0 error**；第 10 个 `$chatId.tsx` 有 **1 error**（`react/iframe-missing-sandbox`），位于**官方原有行且基线即存在**（见 §6.2-6）。`bun run lint` 全仓基线仍为 66 warn / 182 err |
 | 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 54 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
-| 前端 i18n | 7 语言 × **6976** 键，0 缺失/多余/重复（业务十三新增 7 键 × 7 语言） |
+| 前端 i18n | 7 语言 × **7062** 键，0 缺失/多余/重复（合并官方 +102 键后；合并前为 6976） |
 | 后端 i18n | 3 语言 × 265 键 |
 | **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
 | **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |
 | **MySQL：首页风格开关端到端** | 无 option 行 → `/api/status` 返回 `classic`；非法值 `landing-v3`/空串被拒且不落库；`landing-v2` 落库并下发；删行重启仍 `classic`；`options` 表列数仍为 2（**0 DDL**） |
+| **SQLite：官方同步后回归（实测）** | 冷启动建出 198 个 schema 对象、`/api/status` 返回 `home_page_style=classic`；随后两次重启 **DDL 语句均为 0**、`schema_sha256` 与冷启动后完全一致（`ad400fba…`）、探针行存活 |
 | **首页风格下拉框宽度（真实浏览器实测）** | headless Chrome + 生产 `dist` 的 CSS/Public Sans 字体，逐语言量测：修复前选中「官方首页」时触发框 98~164px、弹窗 `min-w-36`，第二项右侧被裁 4.3~44.7px（en 34.8 / fr 44.7 / ja 36.4 / vi 9.1 / ru 4.3 / zh 4.4）；修复后触发框恒为 240px，弹窗按内容取 184.4~304.3px，**7 语言 `clippedBy=[0,0]`**、无横向滚动、未溢出视口 |
 
 ### 6.2 官方既有问题（**不要修**）
