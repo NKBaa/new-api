@@ -58,7 +58,6 @@ import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import { apiKeySchema } from '../types'
 import { useApiKeys } from './api-keys-provider'
-import { useCCSwitchImport } from './cc-switch-import-provider'
 
 function getServerAddress(): string {
   try {
@@ -86,10 +85,10 @@ export function DataTableRowActions<TData>({
     setOpen,
     setCurrentRow,
     triggerRefresh,
+    setResolvedKey,
     resolveRealKey,
     loadingKeys,
   } = useApiKeys()
-  const { openImport } = useCCSwitchImport()
   const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
   const { chatPresets, serverAddress } = useChatPresets()
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
@@ -258,7 +257,9 @@ export function DataTableRowActions<TData>({
           onClick={async () => {
             const realKey = await resolveRealKey(apiKey.id)
             if (!realKey) return
-            openImport(realKey)
+            setResolvedKey(realKey)
+            setCurrentRow(apiKey)
+            setOpen('cc-switch')
           }}
         >
           {t('CC Switch')}

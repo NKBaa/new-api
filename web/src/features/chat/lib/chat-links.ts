@@ -94,18 +94,6 @@ export function chatLinkRequiresApiKey(url: string): boolean {
   )
 }
 
-/**
- * `setting/chat.go` publishes CC Switch as the bare `ccswitch` marker.
- *
- * It names a client integration rather than a link to open, so it must not be
- * listed as a launchable chat preset: opening it navigates to a relative
- * `ccswitch` path. The real import action lives in the sidebar entry and the API
- * key row menu.
- */
-export function isCCSwitchMarker(url: string): boolean {
-  return url.toLowerCase().startsWith('ccswitch')
-}
-
 export function parseChatConfig(raw: RawChatConfig): ChatPreset[] {
   let parsed: unknown = raw
 

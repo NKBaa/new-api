@@ -46,7 +46,6 @@ import { useChatKeyPrompt } from '@/features/chat/hooks/use-chat-key-prompt'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {
   chatLinkRequiresApiKey,
-  isCCSwitchMarker,
   resolveChatUrl,
   type ChatPreset,
 } from '@/features/chat/lib/chat-links'
@@ -205,13 +204,8 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null)
   const loadingPresetIdRef = useRef<string | null>(null)
 
-  // `fluent` and the `ccswitch` marker are integration hooks, not launchable
-  // links: they have dedicated actions elsewhere and would open a broken URL.
   const visiblePresets = useMemo(
-    () =>
-      chatPresets.filter(
-        (preset) => preset.type !== 'fluent' && !isCCSwitchMarker(preset.url)
-      ),
+    () => chatPresets.filter((preset) => preset.type !== 'fluent'),
     [chatPresets]
   )
 
