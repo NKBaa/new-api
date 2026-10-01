@@ -206,15 +206,14 @@ func TestSanitizeRelayErrorSmartFallback(t *testing.T) {
 	// Force cache reset to empty default
 	cachedRulesJSON = ""
 
-	// Unmatched 502 with URL
+	// Unmatched API errors preserve the original message.
 	apiErr := types.NewOpenAIError(errors.New("random proxy failure calling https://internal.corp/api"), types.ErrorCodeBadResponseStatusCode, 502)
 	SanitizeRelayError(nil, apiErr)
-	assert.Equal(t, "上游服务暂时不可用或网络异常，请稍后重试。", apiErr.Error())
+	assert.Equal(t, "random proxy failure calling https://internal.corp/api", apiErr.Error())
 
-	// Unmatched 400 context length
 	apiErr2 := types.NewOpenAIError(errors.New("this prompt maximum token length 128000 exceeded"), types.ErrorCodeBadResponseStatusCode, 400)
 	SanitizeRelayError(nil, apiErr2)
-	assert.Equal(t, "提示词长度超出模型限制，请缩减输入。", apiErr2.Error())
+	assert.Equal(t, "this prompt maximum token length 128000 exceeded", apiErr2.Error())
 
 	// Clean up
 	common.ErrorMappingRules = ""

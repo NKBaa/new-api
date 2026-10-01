@@ -371,9 +371,9 @@ func SanitizeUserLogs(c *gin.Context, logs []*model.Log) {
 	}
 }
 
-// SanitizeRelayError matches the error against configured rules and fallback classifier.
-// It modifies err in-place so that serialization (OpenAI, Claude, etc.) receives the sanitized message
-// and standardizes Type, Code, Param, and Metadata to completely prevent upstream leaks.
+// SanitizeRelayError applies configured replacements to API errors.
+// Unmatched errors retain their original message; matched errors use the configured
+// replacement and may override the HTTP status code.
 func SanitizeRelayError(c *gin.Context, err *types.NewAPIError) {
 	if err == nil || !common.IsErrorSanitizationEnabled() {
 		return
@@ -389,7 +389,8 @@ func SanitizeRelayError(c *gin.Context, err *types.NewAPIError) {
 			statusCode = overrideCode
 		}
 	} else {
-		replaceMsg = ClassifySmartFallback(c, statusCode, rawMsg)
+		// Preserve the upstream message when no mapping rule matches.
+		replaceMsg = rawMsg
 	}
 
 	err.SetMessage(replaceMsg)
