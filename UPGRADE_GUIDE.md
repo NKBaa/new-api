@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `56758edf9`（同步时的 `upstream/main`）。**上一个基线是 `d04c118c8`**，二者之间官方有 20 个提交；本次已把这 20 个提交合并进来（见 §0.2） |
-| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`fb89540c6`（修复聊天侧栏重复的裸 `ccswitch` marker，Docker 构建已成功）、`e9db0a982`（恢复官方 API 密钥页流程）、`6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的 B13 选 Key 提交为 `4234fb98e` 与 `7420d157b` |
+| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`d262745c6`（未匹配错误在网页日志和 API 中保留原文）、`a68059e00`（增加错误规则重叠校验）、`fb89540c6`（修复聊天侧栏重复的裸 `ccswitch` marker）、`e9db0a982`（恢复官方 API 密钥页流程）、`6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的 B13 选 Key 提交为 `4234fb98e` 与 `7420d157b` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **151 文件** = 48 新增 + 103 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -175,8 +175,10 @@ AI 修改本仓库时必须同时满足：
   - **10 条内置预设** + **14 条兜底分类**，全部 key 化（`MessageKey`），经 `i18n.T(c, key)` 按调用方语言下发；
   - **自定义规则无 `MessageKey`，原样输出站长文案**（绝不翻译，`resolveRuleMessage` 在 `MessageKey == ""` 时返回 `ReplaceMsg`）；
   - 翻译缺失时回退预设自带 `ReplaceMsg`，**绝不把 key 暴露给终端用户**；
-  - `MessageKey` 字段有 `json:"message_key,omitempty"`，向后兼容旧规则 JSON。
-- **移植注意**：`i18n.Translate` 已加 **nil-bundle 守卫**（`Init()` 前调用会 panic，属潜在生产事故）；自定义规则的 JSON 校验在 `validateOptionValue` 的 `case "ErrorMappingRules"`。
+  - `MessageKey` 字段有 `json:"message_key,omitempty"`，向后兼容旧规则 JSON；
+  - 命中规则时网页日志和 API 错误使用替换文案；未命中规则时两者均保留原始错误。
+- **规则校验**：`common.ValidateErrorMappingRules` 在保存 `ErrorMappingRules` 前拒绝启用规则之间的状态码范围重叠、空关键词兜底重叠和关键词子串重叠，避免一个错误命中多条规则。
+- **移植注意**：`i18n.Translate` 已加 **nil-bundle 守卫**（`Init()` 前调用会 panic，属潜在生产事故）；自定义规则的 JSON 校验与重叠校验在 `validateOptionValue` 的 `case "ErrorMappingRules"`。
 
 ### B10 · 全链路 i18n
 - **文件**：`i18n/i18n.go`、`i18n/keys.go`、`i18n/locales/{en,zh-CN,zh-TW}.yaml`、`web/src/i18n/locales/{en,zh,zh-TW,ja,fr,ru,vi}.json`、`setting/console_setting/validation.go`
