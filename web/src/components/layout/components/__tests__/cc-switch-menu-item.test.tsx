@@ -32,6 +32,7 @@ import {
 
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { ChatKeyPromptProvider } from '@/features/chat/components/chat-key-prompt-provider'
+import { isCCSwitchMarker } from '@/features/chat/lib/chat-links'
 import { CCSwitchImportProvider } from '@/features/keys/components/cc-switch-import-provider'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -176,5 +177,19 @@ describe('CC Switch sidebar entry', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Select API Key' })
     ).toBeVisible()
+  })
+})
+
+describe('isCCSwitchMarker', () => {
+  it('recognises the marker that setting/chat.go publishes', () => {
+    expect(isCCSwitchMarker('ccswitch')).toBe(true)
+    expect(isCCSwitchMarker('CCSwitch://v1/import')).toBe(true)
+  })
+
+  it('rejects real launchable chat links', () => {
+    expect(
+      isCCSwitchMarker('cherrystudio://providers/api-keys?v=1&data={x}')
+    ).toBe(false)
+    expect(isCCSwitchMarker('fluentread')).toBe(false)
   })
 })
