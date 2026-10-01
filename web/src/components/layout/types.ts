@@ -64,9 +64,20 @@ export type NavChatPresets = BaseNavItem & {
 }
 
 /**
+ * CC Switch import action type - a sidebar button rather than a link
+ *
+ * It carries no `url` because it opens a dialog instead of navigating.
+ */
+export type NavCCSwitch = BaseNavItem & {
+  type: 'cc-switch'
+  url?: never
+  items?: never
+}
+
+/**
  * Navigation item union type
  */
-export type NavItem = NavCollapsible | NavLink | NavChatPresets
+export type NavItem = NavCollapsible | NavLink | NavChatPresets | NavCCSwitch
 
 /**
  * Navigation group type - a group of navigation items in sidebar

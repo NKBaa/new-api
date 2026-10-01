@@ -49,11 +49,13 @@ import {
 
 import { checkIsActive } from '../lib/url-utils'
 import type {
+  NavCCSwitch,
   NavCollapsible,
   NavChatPresets,
   NavLink,
   NavGroup as NavGroupProps,
 } from '../types'
+import { CCSwitchMenuItem } from './cc-switch-menu-item'
 import { ChatPresetsItem } from './chat-presets-item'
 
 /**
@@ -76,6 +78,11 @@ export function NavGroup({ title, items }: NavGroupProps) {
           // Special handling: dynamic chat presets list
           if (item.type === 'chat-presets') {
             return <ChatPresetsItem key={key} item={item as NavChatPresets} />
+          }
+
+          // Special handling: CC Switch import action (button, not a link)
+          if (item.type === 'cc-switch') {
+            return <CCSwitchMenuItem key={key} item={item as NavCCSwitch} />
           }
 
           // If no sub-items, render regular link

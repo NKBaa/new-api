@@ -29,8 +29,15 @@ export type ChatKeyPromptHandle = {
    * Callers that resolve the link themselves (custom-protocol presets) pass
    * `onPick` and launch from there; dismissing the picker leaves the current
    * route untouched in both cases.
+   *
+   * `confirmLabel` overrides the confirm button for callers whose action is not
+   * a launch (for example importing the key into CC Switch).
    */
-  requestKey: (preset: ChatPreset, onPick?: (tokenId: number) => void) => void
+  requestKey: (
+    preset: ChatPreset,
+    onPick?: (tokenId: number) => void,
+    confirmLabel?: string
+  ) => void
 }
 
 export const ChatKeyPromptContext = createContext<ChatKeyPromptHandle | null>(

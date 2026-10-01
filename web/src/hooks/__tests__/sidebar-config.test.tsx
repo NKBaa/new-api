@@ -180,3 +180,43 @@ describe('audit log sidebar entry', () => {
     expect(titles).toContain('Audit Logs')
   })
 })
+
+describe('CC Switch sidebar entry', () => {
+  it('sits between Playground and Chat in the chat group', () => {
+    const { result } = sidebarFor()
+    const items = result.current.find((group) => group.id === 'chat')?.items
+    expect(items?.map((item) => item.title)).toEqual([
+      'Playground',
+      'CC Switch',
+      'Chat',
+    ])
+  })
+
+  it.each([
+    [{ chat: { enabled: true, playground: true, chat: false } }, undefined],
+    [{ chat: { enabled: false } }, { chat: { chat: true } }],
+    [undefined, { chat: { enabled: true, chat: false } }],
+    [undefined, { chat: { enabled: false } }],
+  ])(
+    'admin or user disablement hides CC Switch with the chat group (%j, %j)',
+    (admin, user) => {
+      const { result } = sidebarFor(admin, user)
+      expect(
+        result.current
+          .flatMap((group) => group.items)
+          .some((item) => item.title === 'CC Switch')
+      ).toBe(false)
+    }
+  )
+
+  it('disabling only the Playground leaves CC Switch visible', () => {
+    const { result } = sidebarFor({
+      chat: { enabled: true, playground: false, chat: true },
+    })
+    const titles = result.current
+      .flatMap((group) => group.items)
+      .map((item) => item.title)
+    expect(titles).not.toContain('Playground')
+    expect(titles).toContain('CC Switch')
+  })
+})

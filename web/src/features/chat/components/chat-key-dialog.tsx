@@ -38,6 +38,8 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (tokenId: number) => void
+  /** Confirm button text for actions that are not a launch, e.g. "Continue". */
+  confirmLabel?: string
 }
 
 /**
@@ -161,7 +163,7 @@ export function ChatKeyDialog(props: Props) {
               props.onConfirm(selectedTokenId)
             }}
           >
-            {t('Confirm & Launch')}
+            {props.confirmLabel ?? t('Confirm & Launch')}
           </Button>
         </>
       }

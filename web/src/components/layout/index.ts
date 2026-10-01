@@ -54,6 +54,7 @@ export {
 
 // Type exports (type-only to avoid conflicts with components above)
 export type {
+  NavCCSwitch,
   NavCollapsible,
   NavGroup as NavGroupType,
   NavItem,

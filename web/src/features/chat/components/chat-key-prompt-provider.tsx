@@ -33,6 +33,8 @@ type ChatKeyRequest = {
   preset: ChatPreset
   /** Set by callers that resolve the link themselves instead of navigating. */
   onPick?: (tokenId: number) => void
+  /** Overrides the confirm button text; defaults to "Confirm & Launch". */
+  confirmLabel?: string
 }
 
 /**
@@ -51,10 +53,10 @@ export function ChatKeyPromptProvider(props: { children: React.ReactNode }) {
 
   const handle = useMemo<ChatKeyPromptHandle>(
     () => ({
-      requestKey: (target, onPick) => {
+      requestKey: (target, onPick, confirmLabel) => {
         // The mobile sidebar sheet stacks above the dialog, so close it first.
         setOpenMobile(false)
-        setRequest({ preset: target, onPick })
+        setRequest({ preset: target, onPick, confirmLabel })
       },
     }),
     [setOpenMobile]
@@ -88,6 +90,7 @@ export function ChatKeyPromptProvider(props: { children: React.ReactNode }) {
         key={request?.preset.id ?? 'none'}
         preset={request?.preset ?? null}
         open={request !== null}
+        confirmLabel={request?.confirmLabel}
         onOpenChange={(open) => {
           if (!open) setRequest(null)
         }}

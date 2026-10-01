@@ -22,6 +22,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
 import { ChatKeyPromptProvider } from '@/features/chat/components/chat-key-prompt-provider'
+import { CCSwitchImportProvider } from '@/features/keys/components/cc-switch-import-provider'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 
@@ -40,21 +41,23 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
       <SearchProvider>
         <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
           <ChatKeyPromptProvider>
-            <SkipToMain />
-            <AppHeader />
-            <div className='flex min-h-0 w-full flex-1'>
-              <AppSidebar />
-              <SidebarInset
-                className={cn(
-                  '@container/content',
-                  'h-[calc(100svh-var(--app-header-height,0px))]',
-                  'min-h-0 overflow-hidden',
-                  'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
-                )}
-              >
-                {props.children ?? <AnimatedOutlet />}
-              </SidebarInset>
-            </div>
+            <CCSwitchImportProvider>
+              <SkipToMain />
+              <AppHeader />
+              <div className='flex min-h-0 w-full flex-1'>
+                <AppSidebar />
+                <SidebarInset
+                  className={cn(
+                    '@container/content',
+                    'h-[calc(100svh-var(--app-header-height,0px))]',
+                    'min-h-0 overflow-hidden',
+                    'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
+                  )}
+                >
+                  {props.children ?? <AnimatedOutlet />}
+                </SidebarInset>
+              </div>
+            </CCSwitchImportProvider>
           </ChatKeyPromptProvider>
         </SidebarProvider>
       </SearchProvider>

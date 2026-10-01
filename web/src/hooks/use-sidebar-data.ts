@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  ArrowRightLeft,
   Box,
   ClipboardList,
   CreditCard,
@@ -61,6 +62,11 @@ export function useSidebarData(): SidebarData {
             title: t('Playground'),
             url: '/playground',
             icon: FlaskConical,
+          },
+          {
+            title: t('CC Switch'),
+            icon: ArrowRightLeft,
+            type: 'cc-switch',
           },
           {
             title: t('Chat'),

@@ -203,8 +203,12 @@ function isNavItemVisible(
   adminConfig: SidebarModulesAdminConfig,
   userConfig: SidebarModulesUserConfig
 ): boolean {
-  // Handle dynamic chat presets type — also runs the admin × user AND gate
-  if ('type' in item && item.type === 'chat-presets') {
+  // Handle dynamic chat presets and the CC Switch import action — both live in
+  // the chat group and share its admin × user AND gate.
+  if (
+    'type' in item &&
+    (item.type === 'chat-presets' || item.type === 'cc-switch')
+  ) {
     const adminChat = adminConfig.chat
     const adminAllowed = Boolean(adminChat?.enabled && adminChat.chat === true)
     if (!adminAllowed) return false
