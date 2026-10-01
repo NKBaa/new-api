@@ -32,7 +32,6 @@ import {
 
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { ChatKeyPromptProvider } from '@/features/chat/components/chat-key-prompt-provider'
-import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { CCSwitchImportProvider } from '@/features/keys/components/cc-switch-import-provider'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -124,18 +123,12 @@ beforeEach(() => {
   })
 })
 
-function PresetProbe() {
-  const { chatPresets } = useChatPresets()
-  return <span data-testid='preset-count'>{chatPresets.length}</span>
-}
-
 function renderEntry() {
   render(
     <QueryClientProvider client={queryClient}>
       <SidebarProvider>
         <ChatKeyPromptProvider>
           <CCSwitchImportProvider>
-            <PresetProbe />
             <CCSwitchMenuItem
               item={{
                 title: 'CC Switch',
@@ -170,17 +163,18 @@ describe('CC Switch sidebar entry', () => {
     expect(dialog).toBeVisible()
   })
 
-  it('stays hidden when the deployment does not configure the CC Switch preset', async () => {
+  it('stays visible when the chat preset list omits the CC Switch marker', async () => {
     status.chats = [{ 'Cherry Studio': 'cherrystudio://providers/api-keys' }]
 
     renderEntry()
+    const user = userEvent.setup()
 
-    // Wait for the presets to arrive, then assert the entry never appeared.
-    await waitFor(() =>
-      expect(screen.getByTestId('preset-count')).toHaveTextContent('1')
-    )
+    // The entry is a client-configuration action, not a chat preset: an admin
+    // editing the `Chats` list must not be able to remove it.
+    await user.click(await screen.findByRole('button', { name: /CC Switch/ }))
+
     expect(
-      screen.queryByRole('button', { name: /CC Switch/ })
-    ).not.toBeInTheDocument()
+      await screen.findByRole('dialog', { name: 'Select API Key' })
+    ).toBeVisible()
   })
 })

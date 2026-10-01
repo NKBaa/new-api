@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 import { fetchChatKeyByTokenId } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatKeyPrompt } from '@/features/chat/hooks/use-chat-key-prompt'
-import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
+import type { ChatPreset } from '@/features/chat/lib/chat-links'
 import { useCCSwitchImport } from '@/features/keys/components/cc-switch-import-provider'
 import { handleServerError } from '@/lib/handle-server-error'
 
@@ -32,20 +32,26 @@ import type { NavCCSwitch } from '../types'
  * Sidebar entry for importing this gateway into CC Switch.
  *
  * Same action as the API key row menu: ask which key to export, reveal it, then
- * hand it to the shared import dialog. It is a top-level item rather than a chat
- * preset sub-item because CC Switch is a client configuration target, not a
- * chat preset to navigate to.
+ * hand it to the shared import dialog. CC Switch is a client configuration
+ * target rather than a chat preset, so this entry deliberately does not read the
+ * admin-editable `Chats` list: removing the `ccswitch` preset there must not make
+ * the entry vanish, and keeping it must not produce a second entry.
  */
 export function CCSwitchMenuItem(props: { item: NavCCSwitch }) {
   const { t } = useTranslation()
   const { requestKey } = useChatKeyPrompt()
   const { openImport } = useCCSwitchImport()
-  const { chatPresets } = useChatPresets()
 
-  // `setting/chat.go` publishes CC Switch as the bare `ccswitch` marker, which
-  // the preset parser classifies as a generic custom protocol.
-  const ccsPreset = chatPresets.find((preset) =>
-    preset.url.toLowerCase().startsWith('ccswitch')
+  // The picker only reads `name` for its description text, so derive it from the
+  // already-translated nav title instead of looking it up in `Chats`.
+  const preset = useMemo<ChatPreset>(
+    () => ({
+      id: 'cc-switch',
+      name: props.item.title,
+      url: 'ccswitch',
+      type: 'custom-protocol',
+    }),
+    [props.item.title]
   )
 
   /** Reveal the picked token's secret, then open the import dialog with it. */
@@ -67,18 +73,8 @@ export function CCSwitchMenuItem(props: { item: NavCCSwitch }) {
   )
 
   const handleImport = useCallback(() => {
-    if (!ccsPreset) return
-    requestKey(
-      ccsPreset,
-      (tokenId) => void importWithKey(tokenId),
-      t('Continue')
-    )
-  }, [ccsPreset, importWithKey, requestKey, t])
-
-  // A deployment that dropped the CC Switch preset keeps the entry hidden.
-  if (!ccsPreset) {
-    return null
-  }
+    requestKey(preset, (tokenId) => void importWithKey(tokenId), t('Continue'))
+  }, [preset, importWithKey, requestKey, t])
 
   return (
     <SidebarMenuItem>
