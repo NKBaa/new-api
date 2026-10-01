@@ -11,7 +11,7 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `56758edf9`（同步时的 `upstream/main`）。**上一个基线是 `d04c118c8`**，二者之间官方有 20 个提交；本次已把这 20 个提交合并进来（见 §0.2） |
-| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`f5b742afe`（`VERSION` 抬到 `v1.0.0-rc.41`，**当前 `latest` 镜像即由它构建**）与 `6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的代码提交依次为 `4234fb98e`（B13-r1 选 Key 弹窗视觉与滚动修订）与 `7420d157b`（业务十三选 Key 本体），其间均为纯文档提交 |
+| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`fb89540c6`（修复聊天侧栏重复的裸 `ccswitch` marker，Docker 构建已成功）、`e9db0a982`（恢复官方 API 密钥页流程）、`6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的 B13 选 Key 提交为 `4234fb98e` 与 `7420d157b` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 | 相对基线改动 | **151 文件** = 48 新增 + 103 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
@@ -343,6 +343,16 @@ AI 修改本仓库时必须同时满足：
 5. **jsdom 必须补 `getAnimations`**：Base UI 的 `ScrollAreaViewport` 挂载后会调 `viewport.getAnimations()`，jsdom 未实现，抛 `TypeError` 使 `vitest run` **退出码 1**（断言其实全过）。两个 chat 测试文件各加 `beforeAll` 桩（与仓库既有 `user-binding-dialog.test.tsx`、`channel-configuration.test.tsx` 做法一致）。
 6. **改动文件**：`chat-key-dialog.tsx`、`chat-key-dialog.test.tsx`、`chat-key-prompt.test.tsx`。`chat-key-dialog.test.tsx` 原 4 例**全部保留通过**，另加 2 例布局/交互回归（点卡片右侧密钥徽章可选中该行；长列表留在 `scroll-area-viewport` 内且根节点 `max-h-[340px]`）。
 - **自查命令**：`cd web && bun x vitest run src/features/chat`；`bun run typecheck`。
+
+### B14 · 侧栏 CC Switch 导入入口
+- **背景**：CC Switch 是客户端导入目标，不应作为普通聊天预设启动。侧栏新增独立入口，位于「游乐场」和「聊天」之间，供用户先选择 API Key，再打开 CC Switch 导入配置。
+- **文件**：`web/src/components/layout/components/cc-switch-menu-item.tsx`（新）、`web/src/features/keys/components/cc-switch-import-provider.tsx`（新）、`web/src/components/layout/components/nav-group.tsx`、`web/src/components/layout/index.ts`、`web/src/components/layout/types.ts`、`web/src/hooks/use-sidebar-data.ts`、`web/src/hooks/use-sidebar-config.ts`、`web/src/components/layout/components/authenticated-layout.tsx`，以及侧栏测试文件。
+- **行为**：入口不依赖后台 `Chats` 配置，因此管理员删除旧的 `ccswitch` 项后入口仍存在；入口与聊天模块共用原有管理员 × 用户可见性门控。移动端打开密钥选择前会关闭侧栏抽屉。
+- **密钥流程**：列表只显示启用密钥的脱敏值；用户确认后使用既有鉴权接口取得完整密钥，再交给 CC Switch 导入对话框。关闭对话框会清理临时密钥状态；不新增数据库字段或后端接口。
+- **废弃 marker**：聊天子菜单只过滤精确的裸值 `ccswitch`（忽略首尾空白和大小写），避免与顶层入口重复并阻止无效的 `/dashboard/ccswitch` 跳转；其他聊天预设和 API 密钥页面的官方 CC Switch 流程不改。
+- **移植边界**：保留 API 密钥页面自身的 `CCSwitchDialog` 与行操作，不要把 API 密钥页面改为依赖侧栏的全局 Provider。侧栏 Provider 只服务新增的侧栏入口。
+- **提交**：初始实现及修复见 `9a6de705c`、`6b18c18b3`、`8760a2f17`；官方流程恢复见 `e9db0a982`；裸 marker 过滤修复见 `fb89540c6`。
+- **自查命令**：`cd web && bun x vitest run src/components/layout/components/__tests__/cc-switch-menu-item.test.tsx src/features/keys/components/__tests__/api-key-listing.test.tsx src/hooks/__tests__/sidebar-config.test.tsx`；`bun run typecheck`；对受影响文件执行 `bun x oxlint`。
 
 ---
 
