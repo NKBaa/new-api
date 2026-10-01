@@ -204,8 +204,15 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null)
   const loadingPresetIdRef = useRef<string | null>(null)
 
+  // The bare `ccswitch` value is a deprecated integration marker, not a
+  // launchable chat preset; the dedicated sidebar item handles it instead.
   const visiblePresets = useMemo(
-    () => chatPresets.filter((preset) => preset.type !== 'fluent'),
+    () =>
+      chatPresets.filter(
+        (preset) =>
+          preset.type !== 'fluent' &&
+          preset.url.trim().toLowerCase() !== 'ccswitch'
+      ),
     [chatPresets]
   )
 
