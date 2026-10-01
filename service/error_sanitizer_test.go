@@ -28,6 +28,37 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestUnmatchedLogErrorPreservesOriginalContent(t *testing.T) {
+	common.ErrorSanitizationEnabled = true
+	common.ErrorMappingRules = `[]`
+	content := "status_code=418, provider internal trace abc123"
+	logs := []*model.Log{{Type: model.LogTypeError, Content: content}}
+
+	SanitizeUserLogs(nil, logs)
+
+	assert.Equal(t, content, logs[0].Content)
+}
+
+func TestValidateErrorMappingRulesRejectsOverlappingEnabledRules(t *testing.T) {
+	err := common.ValidateErrorMappingRules([]common.ErrorMappingRule{
+		{Name: "broad", MatchCode: 400, Keywords: "invalid request", Enabled: true},
+		{Name: "specific", MatchCode: 400, Keywords: "request", Enabled: true},
+	})
+	assert.Error(t, err)
+
+	err = common.ValidateErrorMappingRules([]common.ErrorMappingRule{
+		{Name: "all statuses", Keywords: "", Enabled: true},
+		{Name: "status", MatchCode: 400, Keywords: "bad", Enabled: true},
+	})
+	assert.Error(t, err)
+
+	err = common.ValidateErrorMappingRules([]common.ErrorMappingRule{
+		{Name: "disabled", MatchCode: 400, Keywords: "request", Enabled: false},
+		{Name: "active", MatchCode: 400, Keywords: "request", Enabled: true},
+	})
+	assert.NoError(t, err)
+}
+
 func TestSanitizeRelayErrorUserExamples(t *testing.T) {
 	// Enable sanitization and use default rules
 	common.ErrorSanitizationEnabled = true
@@ -205,10 +236,10 @@ func TestSanitizeLogContentAndUserLogs(t *testing.T) {
 	sanitized2 := SanitizeLogContent(nil, content2)
 	assert.Equal(t, "当前模型服务请求量激增或高负载，请稍后重试。", sanitized2)
 
-	// 3. Fallback for unmapped error with technical details
+	// 3. Unmatched log errors preserve the original content for diagnostics
 	content3 := "status_code=502, proxy failed connecting to 192.168.1.1:8080 and https://secret.corp/v1"
 	sanitized3 := SanitizeLogContent(nil, content3)
-	assert.Equal(t, "上游服务暂时不可用或网络异常，请稍后重试。", sanitized3)
+	assert.Equal(t, content3, sanitized3)
 
 	// 4. Test SanitizeUserLogs batch processor
 	logs := []*model.Log{

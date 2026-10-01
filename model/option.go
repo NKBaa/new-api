@@ -261,6 +261,9 @@ func validateOptionValue(key string, value string) error {
 			if err := common.Unmarshal([]byte(value), &rules); err != nil {
 				return fmt.Errorf("报错映射规则必须是合法的 JSON 数组: %v", err)
 			}
+			if err := common.ValidateErrorMappingRules(rules); err != nil {
+				return err
+			}
 		}
 	}
 	if key == "AffiliateCommissionRate" {

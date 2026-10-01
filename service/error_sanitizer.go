@@ -353,7 +353,9 @@ func SanitizeLogContent(c *gin.Context, content string) string {
 		return replaceMsg
 	}
 
-	return ClassifySmartFallback(c, statusCode, rawMsg)
+	// Logs are already restricted to the authenticated log viewer. When no
+	// mapping rule matches, preserve the original record for diagnostics.
+	return content
 }
 
 // SanitizeUserLogs sanitizes error log contents for regular user consumption,
