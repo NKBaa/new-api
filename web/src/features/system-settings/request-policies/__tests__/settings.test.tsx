@@ -329,6 +329,67 @@ describe('request policy settings', () => {
     expect(api.put).not.toHaveBeenCalled()
   })
 
+  it('conflicting error rules are highlighted and block the save', async () => {
+    settings.ErrorMappingRules = JSON.stringify([
+      {
+        id: 1,
+        name: 'Quota',
+        match_code: 0,
+        keywords: 'quota',
+        replace_msg: 'Sanitized',
+        override_code: 502,
+        enabled: true,
+      },
+      {
+        id: 2,
+        name: 'Rate limit',
+        match_code: 0,
+        keywords: 'quota exceeded',
+        replace_msg: 'Sanitized',
+        override_code: 429,
+        enabled: true,
+      },
+    ])
+    await renderPolicies('/system-settings/request-policies/error-mapping')
+
+    expect(await screen.findByText('Conflicting rules (1)')).toBeVisible()
+    expect(screen.getByText('Quota conflicts with Rate limit')).toBeVisible()
+    expect(screen.getAllByText('Conflict')).toHaveLength(2)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(api.put).not.toHaveBeenCalled())
+  })
+
+  it('non-conflicting error rules save the sanitization options', async () => {
+    settings.ErrorMappingRules = JSON.stringify([
+      {
+        id: 1,
+        name: 'Quota',
+        match_code: 429,
+        keywords: 'quota',
+        replace_msg: 'Sanitized',
+        override_code: 429,
+        enabled: true,
+      },
+      {
+        id: 2,
+        name: 'Not found',
+        match_code: 404,
+        keywords: 'not found',
+        replace_msg: 'Sanitized',
+        override_code: 404,
+        enabled: true,
+      },
+    ])
+    await renderPolicies('/system-settings/request-policies/error-mapping')
+
+    await screen.findByText('Quota')
+    expect(screen.queryByText('Conflicting rules (1)')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2))
+  })
+
   it('the affinity cache section opens with the keyboard and keeps the existing values', async () => {
     await renderPolicies('/system-settings/request-policies/affinity')
     const toggle = await screen.findByRole('button', {

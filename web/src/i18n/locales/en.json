@@ -7061,6 +7061,9 @@
     "Official home page": "Official home page",
     "OpenRouter style home page": "OpenRouter style home page",
     "Select home page style": "Select home page style",
-    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Layout of the site root route. Custom home page content takes precedence over both layouts."
+    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Layout of the site root route. Custom home page content takes precedence over both layouts.",
+    "Conflicting rules": "Conflicting rules",
+    "Resolve the conflicting rules before saving": "Resolve the conflicting rules before saving",
+    "{{first}} conflicts with {{second}}": "{{first}} conflicts with {{second}}"
   }
 }

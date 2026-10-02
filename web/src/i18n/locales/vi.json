@@ -7061,6 +7061,9 @@
     "Official home page": "Trang chủ chính thức",
     "OpenRouter style home page": "Trang chủ kiểu OpenRouter",
     "Select home page style": "Chọn kiểu trang chủ",
-    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Bố cục dùng cho tuyến gốc của site. Nội dung trang chủ tùy chỉnh được ưu tiên hơn cả hai bố cục."
+    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Bố cục dùng cho tuyến gốc của site. Nội dung trang chủ tùy chỉnh được ưu tiên hơn cả hai bố cục.",
+    "Conflicting rules": "Quy tắc xung đột",
+    "Resolve the conflicting rules before saving": "Hãy giải quyết các quy tắc xung đột trước khi lưu",
+    "{{first}} conflicts with {{second}}": "{{first}} xung đột với {{second}}"
   }
 }

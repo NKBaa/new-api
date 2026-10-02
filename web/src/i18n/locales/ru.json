@@ -7061,6 +7061,9 @@
     "Official home page": "Официальная главная страница",
     "OpenRouter style home page": "Главная страница в стиле OpenRouter",
     "Select home page style": "Выберите стиль главной страницы",
-    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Макет, используемый корневым маршрутом сайта. Пользовательское содержимое главной страницы имеет приоритет над обоими макетами."
+    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Макет, используемый корневым маршрутом сайта. Пользовательское содержимое главной страницы имеет приоритет над обоими макетами.",
+    "Conflicting rules": "Конфликтующие правила",
+    "Resolve the conflicting rules before saving": "Устраните конфликтующие правила перед сохранением",
+    "{{first}} conflicts with {{second}}": "{{first}} конфликтует с {{second}}"
   }
 }

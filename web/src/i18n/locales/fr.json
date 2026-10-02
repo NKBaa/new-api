@@ -7061,6 +7061,9 @@
     "Official home page": "Page d'accueil officielle",
     "OpenRouter style home page": "Page d'accueil de style OpenRouter",
     "Select home page style": "Sélectionner le style de la page d’accueil",
-    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Mise en page utilisée par la route racine du site. Le contenu personnalisé de la page d'accueil est prioritaire sur ces deux mises en page."
+    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Mise en page utilisée par la route racine du site. Le contenu personnalisé de la page d'accueil est prioritaire sur ces deux mises en page.",
+    "Conflicting rules": "Règles en conflit",
+    "Resolve the conflicting rules before saving": "Résolvez les règles en conflit avant d’enregistrer",
+    "{{first}} conflicts with {{second}}": "{{first}} entre en conflit avec {{second}}"
   }
 }

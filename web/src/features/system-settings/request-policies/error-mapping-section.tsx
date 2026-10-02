@@ -26,6 +26,7 @@ import {
   Search,
   Table,
   Trash2,
+  TriangleAlert,
 } from 'lucide-react'
 import { t } from 'i18next'
 import { useMemo, useState } from 'react'
@@ -36,6 +37,7 @@ import { StaticDataTable, TruncatedCell } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { EmptyState } from '@/components/empty-state'
 import { JsonCodeEditor } from '@/components/json-code-editor'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +45,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import {
   SettingsSwitchContent,
@@ -52,6 +55,10 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import type { ErrorMappingRule } from '../types'
+import {
+  collectConflictingRuleIds,
+  findErrorRuleConflicts,
+} from './error-rule-conflicts'
 
 const DEFAULT_ERROR_MAPPING_PRESETS: ErrorMappingRule[] = [
   {
@@ -374,6 +381,11 @@ export function ErrorMappingSection({
       }
     }
 
+    if (findErrorRuleConflicts(rulesToPersist).length > 0) {
+      toast.error(t('Resolve the conflicting rules before saving'))
+      return
+    }
+
     try {
       await updateOption.mutateAsync({
         key: 'ErrorSanitizationEnabled',
@@ -384,10 +396,38 @@ export function ErrorMappingSection({
         value: JSON.stringify(rulesToPersist),
       })
       toast.success(t('Settings saved successfully'))
-    } catch {
-      toast.error(t('Failed to save settings'))
+    } catch (error) {
+      handleServerError(error, t('Failed to save settings'))
     }
   }
+
+  // While the JSON tab is active the text is the source of truth, so conflicts
+  // follow the editor content instead of the last visual state.
+  const editorRules = useMemo(() => {
+    if (editMode !== 'json') return rules
+    const trimmed = jsonValue.trim()
+    if (!trimmed || trimmed === '[]') return []
+    try {
+      return normalizeRulesFromJson(JSON.parse(trimmed))
+    } catch {
+      return []
+    }
+  }, [editMode, jsonValue, rules])
+
+  const conflicts = useMemo(
+    () => findErrorRuleConflicts(editorRules),
+    [editorRules]
+  )
+  const conflictingRuleIds = useMemo(
+    () => collectConflictingRuleIds(conflicts),
+    [conflicts]
+  )
+
+  const ruleNameById = useMemo(() => {
+    const names = new Map<number, string>()
+    for (const rule of editorRules) names.set(rule.id, rule.name)
+    return names
+  }, [editorRules])
 
   const filteredRules = useMemo(() => {
     const q = searchQuery.toLowerCase().trim()
@@ -416,6 +456,38 @@ export function ErrorMappingSection({
           onSave={handleSaveAll}
           isSaving={updateOption.isPending}
         />
+
+        {conflicts.length > 0 && (
+          <Alert variant='destructive'>
+            <TriangleAlert aria-hidden='true' />
+            <AlertTitle>
+              {t('Conflicting rules')} ({conflicts.length})
+            </AlertTitle>
+            <AlertDescription>
+              <p>{t('Resolve the conflicting rules before saving')}</p>
+              <ul className='list-disc space-y-1 pl-5'>
+                {conflicts.map((conflict) => (
+                  <li
+                    key={`${conflict.firstRuleId}-${conflict.secondRuleId}`}
+                    className='font-mono text-xs'
+                  >
+                    <span>
+                      {t('{{first}} conflicts with {{second}}', {
+                        first: ruleNameById.get(conflict.firstRuleId),
+                        second: ruleNameById.get(conflict.secondRuleId),
+                      })}
+                    </span>
+                    {conflict.firstKeyword && conflict.secondKeyword && (
+                      <span className='text-muted-foreground'>
+                        {` — ${conflict.firstKeyword} / ${conflict.secondKeyword}`}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Master switch */}
         <SettingsSwitchItem>
@@ -504,6 +576,11 @@ export function ErrorMappingSection({
                 <StaticDataTable
                   data={filteredRules}
                   getRowKey={(rule) => String(rule.id)}
+                  getRowClassName={(rule) =>
+                    conflictingRuleIds.has(rule.id)
+                      ? 'bg-destructive/5'
+                      : undefined
+                  }
                   className='focus-visible:outline-ring overflow-x-auto rounded-none border-0'
                   tableClassName='min-w-[800px] table-fixed [&_th]:px-4 [&_th]:text-muted-foreground [&_td]:px-4 [&_td]:py-3.5'
                   headerRowClassName='bg-muted/40 hover:bg-muted/40'
@@ -530,6 +607,9 @@ export function ErrorMappingSection({
                           <span className='font-medium text-sm'>
                             {rule.name}
                           </span>
+                          {conflictingRuleIds.has(rule.id) && (
+                            <Badge variant='destructive'>{t('Conflict')}</Badge>
+                          )}
                         </div>
                       ),
                     },

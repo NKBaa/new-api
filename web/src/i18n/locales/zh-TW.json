@@ -7061,6 +7061,9 @@
     "Official home page": "官方首頁",
     "OpenRouter style home page": "OpenRouter 風格首頁",
     "Select home page style": "選擇首頁風格",
-    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "站點根路由使用的版面。自訂首頁內容優先於這兩種版面。"
+    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "站點根路由使用的版面。自訂首頁內容優先於這兩種版面。",
+    "Conflicting rules": "衝突規則",
+    "Resolve the conflicting rules before saving": "請先解決衝突的規則後再儲存",
+    "{{first}} conflicts with {{second}}": "{{first}} 與 {{second}} 衝突"
   }
 }

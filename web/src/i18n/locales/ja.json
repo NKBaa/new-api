@@ -7061,6 +7061,9 @@
     "Official home page": "公式ホームページ",
     "OpenRouter style home page": "OpenRouter 風ホームページ",
     "Select home page style": "ホームページのスタイルを選択",
-    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "サイトのルートで使用するレイアウト。カスタムのホームページ内容が両方のレイアウトより優先されます。"
+    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "サイトのルートで使用するレイアウト。カスタムのホームページ内容が両方のレイアウトより優先されます。",
+    "Conflicting rules": "競合するルール",
+    "Resolve the conflicting rules before saving": "保存する前に競合するルールを解決してください",
+    "{{first}} conflicts with {{second}}": "{{first}} は {{second}} と競合しています"
   }
 }

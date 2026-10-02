@@ -178,6 +178,7 @@ AI 修改本仓库时必须同时满足：
   - `MessageKey` 字段有 `json:"message_key,omitempty"`，向后兼容旧规则 JSON；
   - 命中规则时网页日志和 API 错误使用替换文案；未命中规则时两者均保留原始错误。
 - **规则校验**：`common.ValidateErrorMappingRules` 在保存 `ErrorMappingRules` 前拒绝启用规则之间的状态码范围重叠、空关键词兜底重叠和关键词子串重叠，避免一个错误命中多条规则。
+- **前端冲突提示**：`web/src/features/system-settings/request-policies/error-rule-conflicts.ts`(新) 镜像后端判定（同样的分隔符归一化、状态码范围重叠、空关键词兜底与子串重叠规则），在可视化表格与 JSON 模式（以编辑器文本为准）中即时检出冲突：冲突行加 `bg-destructive/5` 底色并显示 `Conflict` 徽标，保存按钮上方用 `Alert variant='destructive'` 列出冲突规则对与重叠关键词，`handleSaveAll` 在冲突时直接拦截并提示；服务端错误经 `handleServerError` 保留原始原因，不再吞成通用文案。
 - **移植注意**：`i18n.Translate` 已加 **nil-bundle 守卫**（`Init()` 前调用会 panic，属潜在生产事故）；自定义规则的 JSON 校验与重叠校验在 `validateOptionValue` 的 `case "ErrorMappingRules"`。
 
 ### B10 · 全链路 i18n
@@ -536,8 +537,9 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 前端 `src/features/chat` | **2 文件 / 10 用例**全过（业务十三 8 例 + B13-r1 新增 2 例） |
 | 前端全量 `vitest` | **181 文件 / 2209 用例**全过（合并官方 20 提交后；B13-r1 前为 174/2157） |
 | 改动前端文件 lint | 业务十三新增/改动的 9 个文件（不含路由）：**0 warning / 0 error**；第 10 个 `$chatId.tsx` 有 **1 error**（`react/iframe-missing-sandbox`），位于**官方原有行且基线即存在**（见 §6.2-6）。`bun run lint` 全仓基线仍为 66 warn / 182 err |
-| 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 54 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
-| 前端 i18n | 7 语言 × **7062** 键，0 缺失/多余/重复（合并官方 +102 键后；合并前为 6976） |
+| 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 53 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
+| 前端 i18n | 7 语言 × **7065** 键，0 缺失/多余/重复（冲突提示 +3 键；合并官方 +102 键后；合并前为 6976） |
+| 报错规则冲突 UI（实测） | `oxlint` 改动 4 文件 **0 warn / 0 err**；`typecheck` exit 0；`vitest run src/features/system-settings/request-policies/__tests__/` **4 文件 / 58 用例全过**（新增 `error-rule-conflicts.test.ts` 6 例覆盖子串重叠/兜底规则/状态码不重叠/禁用规则/全角与换行分隔符/ID 去重，`settings.test.tsx` 新增 2 例覆盖冲突高亮+保存拦截与无冲突正常保存） |
 | 后端 i18n | 3 语言 × 265 键 |
 | **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
 | **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |

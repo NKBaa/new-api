@@ -7061,6 +7061,9 @@
     "Official home page": "官方首页",
     "OpenRouter style home page": "OpenRouter 风格首页",
     "Select home page style": "选择首页风格",
-    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "站点根路由使用的布局。自定义首页内容优先于这两种布局。"
+    "Layout of the site root route. Custom home page content takes precedence over both layouts.": "站点根路由使用的布局。自定义首页内容优先于这两种布局。",
+    "Conflicting rules": "冲突规则",
+    "Resolve the conflicting rules before saving": "请先解决冲突的规则后再保存",
+    "{{first}} conflicts with {{second}}": "{{first}} 与 {{second}} 冲突"
   }
 }
