@@ -11,11 +11,11 @@
 | 项 | 值 |
 |---|---|
 | 官方基线 | `56758edf9`（同步时的 `upstream/main`）。**上一个基线是 `d04c118c8`**，二者之间官方有 20 个提交；本次已把这 20 个提交合并进来（见 §0.2） |
-| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`d262745c6`（未匹配错误在网页日志和 API 中保留原文）、`a68059e00`（增加错误规则重叠校验）、`fb89540c6`（修复聊天侧栏重复的裸 `ccswitch` marker）、`e9db0a982`（恢复官方 API 密钥页流程）、`6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的 B13 选 Key 提交为 `4234fb98e` 与 `7420d157b` |
+| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`8c177d193`（前端高亮与拦截错误映射规则冲突）、`d262745c6`（未匹配错误在网页日志和 API 中保留原文）、`a68059e00`（增加错误规则重叠校验）、`fb89540c6`（修复聊天侧栏重复的裸 `ccswitch` marker）、`e9db0a982`（恢复官方 API 密钥页流程）、`6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的 B13 选 Key 提交为 `4234fb98e` 与 `7420d157b` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
-| 相对基线改动 | **151 文件** = 48 新增 + 103 修改 + **0 删除** |
+| 相对基线改动 | **163 文件** = 53 新增 + 110 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
-| 纯业务改动 | **147 文件** = 45 新增 + 102 修改 |
+| 纯业务改动 | **159 文件** = 50 新增 + 109 修改 |
 | 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
@@ -448,7 +448,7 @@ git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（`dd6c0b9c1…`，151 文件改动，含新增的 `relay/channel/opencode/` 包与 `web/src/features/chat/components/`）。
+**已验证**：该补丁可干净应用，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（`eacf997c6…`，163 文件改动，含新增的 `relay/channel/opencode/` 包、`web/src/features/chat/components/` 与报错映射冲突处理模块）。
 > 验证方式（可复现）：`git worktree add --detach 56758edf9` → `git apply --check`（exit 0）→ `git apply` → `git add -A && git write-tree`，树哈希与交付仓库 `HEAD^{tree}` 相同，`git status --porcelain` 恰好 151 条。
 > `git apply` 可能提示几行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
@@ -505,9 +505,9 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64）。
-  - **✅ 当前 `latest` 就是最新交付代码**：对应提交 `f5b742afe`（把 `VERSION` 抬到 `v1.0.0-rc.41`；其代码本体来自 `6fab4aa6c` 那次官方合并），构建 run `36739694276`（run number 79），**success**，`Build and push` 1221 秒 / 整任务 22 分 15 秒。摘要 `sha256:f2b85194d49c6903f653dec3700d99d030c3ca4948a408dcb6af97081c94ea38`，与标签 `sha-f5b742afe95ee806cf5d5e9488d693fc580bc560` **完全一致**（上一版 `6fab4aa6c` 为 `sha256:3c5ea9dff5594072f02afb96c730683ef846f67808685d39bfe503686ecc7437`，已确认被替换）。**13 项业务 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订 + 官方 20 个提交，全都在里面。**
-  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.41`** → 版本号已抬高。
-  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `f2b85194…`）。
+  - **✅ 当前 `latest` 就是最新交付代码**：对应提交 `8c177d193`（前端高亮与拦截错误映射规则冲突；含此前全部 14 项功能与官方合并），构建 run `36974257733`（run number 90），**success**，整任务 17 分 53 秒。摘要 `sha256:23209e1d0ac9053cacf64aca036fc5c96e1c43e03ad4e186c6086f9d16bf9416`，与标签 `sha-8c177d19353d13b50f9de0ae0bbd73808a8e26ff` **完全一致**。**14 项业务 + 错误映射规则冲突前端拦截与高亮 + 未匹配错误原文保留 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订 + 官方 20 个提交，全都在里面。**
+  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；后台「系统设置 → 请求策略」新增两条相同或重叠关键词规则 → 立即高亮红色 Badge 并拦截保存；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.41`** → 版本号已抬高。
+  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `23209e1d…`）。
   - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
     - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
     - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
@@ -535,7 +535,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 前端 `typecheck` | exit 0（含业务十三与官方同步后重跑） |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端 `src/features/chat` | **2 文件 / 10 用例**全过（业务十三 8 例 + B13-r1 新增 2 例） |
-| 前端全量 `vitest` | **181 文件 / 2209 用例**全过（合并官方 20 提交后；B13-r1 前为 174/2157） |
+| 前端全量 `vitest` | **183 文件 / 2225 用例**全过（合并官方 20 提交后为 181/2209；B13-r1 前为 174/2157） |
 | 改动前端文件 lint | 业务十三新增/改动的 9 个文件（不含路由）：**0 warning / 0 error**；第 10 个 `$chatId.tsx` 有 **1 error**（`react/iframe-missing-sandbox`），位于**官方原有行且基线即存在**（见 §6.2-6）。`bun run lint` 全仓基线仍为 66 warn / 182 err |
 | 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 53 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
 | 前端 i18n | 7 语言 × **7065** 键，0 缺失/多余/重复（冲突提示 +3 键；合并官方 +102 键后；合并前为 6976） |
