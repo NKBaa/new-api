@@ -21,7 +21,6 @@ import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'
 import { ApiInfoSection } from './api-info-section'
 import { ChatSettingsSection } from './chat-settings-section'
-import { CustomerServiceScriptSection } from './customer-service-script-section'
 import { CustomerServiceSection } from './customer-service-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
@@ -122,16 +121,10 @@ const CONTENT_SECTIONS = [
     id: 'customer-service',
     titleKey: 'Customer Service Presets',
     build: (settings: ContentSettings) => (
-      <div className='flex flex-col gap-10'>
-        <CustomerServiceSection
-          enabled={settings['console_setting.customer_service_enabled']}
-          data={settings['console_setting.customer_service']}
-        />
-        <CustomerServiceScriptSection
-          enabled={settings['console_setting.customer_service_script_enabled']}
-          script={settings['console_setting.customer_service_script']}
-        />
-      </div>
+      <CustomerServiceSection
+        enabled={settings['console_setting.customer_service_enabled']}
+        data={settings['console_setting.customer_service']}
+      />
     ),
   },
 ] as const

@@ -152,14 +152,10 @@ export interface SystemStatus {
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     customer_service_enabled?: boolean
     customer_service?: CustomerServiceItem[]
-    customer_service_script_enabled?: boolean
-    customer_service_script?: string
     [key: string]: unknown
   }
   customer_service_enabled?: boolean
   customer_service?: CustomerServiceItem[]
-  customer_service_script_enabled?: boolean
-  customer_service_script?: string
   // Allow direct access to common properties
   version?: string
   affiliate_description?: string

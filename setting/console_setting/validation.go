@@ -24,12 +24,6 @@ var (
 		"violet": true, "grey": true, "slate": true,
 	}
 	slugRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-	// 第三方客服脚本：完整 <script ...>...</script> 标签的拆解
-	scriptTagRegex = regexp.MustCompile(`(?is)^<script\b([^>]*)>(.*?)</script>$`)
-	// 从 <script> 属性中提取 src（支持双引号、单引号与无引号写法）
-	scriptSrcRegex = regexp.MustCompile(`(?i)\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))`)
-	// 事件处理属性，例如 onload= / onerror=
-	eventHandlerAttrRegex = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
 )
 
 func parseJSONArray(jsonStr string, typeName string) ([]map[string]interface{}, error) {
@@ -136,8 +130,6 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 		return validateUptimeKumaGroups(settingsStr)
 	case "CustomerService":
 		return validateCustomerService(settingsStr)
-	case "CustomerServiceScript":
-		return validateCustomerServiceScript(settingsStr)
 	default:
 		return fmt.Errorf("未知的设置类型：%s", settingType)
 	}
@@ -438,6 +430,7 @@ func validateCustomerService(customerServiceStr string) error {
 func GetCustomerService() []map[string]interface{} {
 	return getJSONList(GetConsoleSetting().CustomerService)
 }
+<<<<<<< HEAD
 
 // maxCustomerServiceScriptChars 限制第三方客服脚本配置的长度，避免把大段内容塞进选项表。
 const maxCustomerServiceScriptChars = 2000
@@ -558,3 +551,5 @@ func validateCustomerServiceScript(scriptStr string) error {
 	// 与前端一致：引号两侧的空白属于标签书写，不属于 URL。
 	return validateExternalScriptURL(strings.TrimSpace(src))
 }
+=======
+>>>>>>> parent of 5c83d38dc (feat(console): add global third-party customer service widget)

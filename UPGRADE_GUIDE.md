@@ -13,9 +13,9 @@
 | 官方基线 | `56758edf9`（同步时的 `upstream/main`）。**上一个基线是 `d04c118c8`**，二者之间官方有 20 个提交；本次已把这 20 个提交合并进来（见 §0.2） |
 | 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`8c177d193`（前端高亮与拦截错误映射规则冲突）、`d262745c6`（未匹配错误在网页日志和 API 中保留原文）、`a68059e00`（增加错误规则重叠校验）、`fb89540c6`（修复聊天侧栏重复的裸 `ccswitch` marker）、`e9db0a982`（恢复官方 API 密钥页流程）、`6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的 B13 选 Key 提交为 `4234fb98e` 与 `7420d157b` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
-| 相对基线改动 | **170 文件** = 59 新增 + 111 修改 + **0 删除** |
+| 相对基线改动 | **163 文件** = 53 新增 + 110 修改 + **0 删除** |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
-| 纯业务改动 | **166 文件** = 56 新增 + 110 修改 |
+| 纯业务改动 | **159 文件** = 50 新增 + 109 修改 |
 | 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
@@ -65,8 +65,7 @@ synth=$(git commit-tree "$tree" -p 56758edf9 -m "port 11 businesses")
 git format-patch --binary --stdout -1 "$synth" > businesses.patch
 ```
 
-仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `56758edf9`，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**，170 个改动文件。
-> **本手册刻意不写死树哈希与补丁字节数**：本手册与 `README_CN.md` 本身就在补丁内，任何一次改文档都会同时改变两者，写死必然立刻过期。复现时按上面命令重新生成并比对即可。
+仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `56758edf9`，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（`dd6c0b9c1…`），151 个改动文件。
 
 ---
 
@@ -157,11 +156,12 @@ AI 修改本仓库时必须同时满足：
 - **移植注意**：`RequireTopUp` 为 `true` 时必须确认 7 处标记写入仍在，否则用户充值后 5 分钟内无法签到。
 
 ### B7 · 在线客服预设体系
-- **文件**：`setting/console_setting/config.go`、`setting/console_setting/validation.go`、`controller/customer_service_test.go`(新)、`web/src/features/system-settings/content/customer-service-section.tsx`、`web/src/features/system-settings/content/customer-service-script-section.tsx`(新)、`web/src/features/landing-v2/components/customer-service*.tsx`
+- **文件**：`setting/console_setting/config.go`、`setting/console_setting/validation.go`、`controller/customer_service_test.go`(新)、`web/src/features/system-settings/content/customer-service-section.tsx`、`web/src/features/landing-v2/components/customer-service*.tsx`
 - **符号**：`ConsoleSetting.CustomerService`（JSON 数组字符串）、`CustomerServiceEnabled`、`GetCustomerService()`、`validateCustomerService()`
 - **存储**：`console_setting`（注册于 `config.GlobalConfig`，落 `options` 表）—— **0 DDL**
 - **移植注意**：官方基线**没有** `CustomerService` 字段，是本次新增；`validation.go` 的 `case "CustomerService"` 分支不可省（否则后台保存会绕过校验）。
 
+<<<<<<< HEAD
 ### B7-1 · 第三方客服脚本挂件（全局注入）
 - **文件**：`setting/console_setting/config.go`、`setting/console_setting/validation.go`、`controller/option.go`、`controller/misc.go`、`controller/customer_service_test.go`、`web/src/lib/customer-service-script.ts`(新)、`web/src/components/customer-service-script-widget.tsx`(新)、`web/src/routes/__root.tsx`、`web/src/features/system-settings/content/customer-service-script-section.tsx`(新)
 - **符号**：`ConsoleSetting.CustomerServiceScript`/`CustomerServiceScriptEnabled`、`validateCustomerServiceScript()`、`validateExternalScriptURL()`、`isForbiddenScriptURLRune()`、`parseCustomerServiceScript()`、`isLoadableScriptUrl()`、`CustomerServiceScriptWidget`
@@ -175,6 +175,8 @@ AI 修改本仓库时必须同时满足：
 - **成功提示去重**：`useUpdateOption` 已在自身 `onSuccess` 里 `toast.success`，板块内原本又弹一次，实测「开启开关且需先存脚本」这一路径会连弹 **3 条**相同提示；已移除板块内的 `toast.success`，保留 hook 的提示（错误提示仍由板块负责）。
 - **移植注意**：官方基线没有这两个字段；`controller/option.go` 的 `case "console_setting.customer_service_script"` 分支与 `/api/status` 的 `customer_service_script`（仅在开关为 true 时下发）都不可省，否则要么绕过校验、要么前台拿不到配置。
 
+=======
+>>>>>>> parent of 5c83d38dc (feat(console): add global third-party customer service widget)
 ### B8 · 本地图片压缩直传（零图床）
 - **文件**：`web/src/lib/image-compress.ts`(新)、`controller/option.go`、`common/constants.go`、`web/src/features/system-settings/**`
 - **符号**：`image-compress.ts` 导出压缩函数；支持文件选择 + 拖拽 + 剪贴板 `Ctrl+V`
@@ -373,23 +375,23 @@ AI 修改本仓库时必须同时满足：
 
 ---
 
-## 3. 改动文件清单（166 业务文件）
+## 3. 改动文件清单（147 业务文件）
 
 ### 3.1 按层统计（实测）
 
 | 层 | 新增 | 修改 | 小计 |
 |---|---|---|---|
-| 前端 `web/src/` | 38 | 69 | **107** |
+| 前端 `web/src/` | 27 | 61 | **88** |
 | 后端 `*.go`（含 `service`/`model`/`controller`/`relay`/`relaykit`/`common`/`setting`/`router`） | 18 | 38 | **56** |
 | 其它（根目录文档、`VERSION`、workflow、`i18n/locales/*.yaml`） | 3 | 4 | 7 |
-| **合计** | **59** | **111** | **170** |
+| **合计** | **48** | **103** | **151** |
 
-其中**业务**文件 166 个（56 新增 + 110 修改），**非业务** 4 个（见 §0）。业务 B7-1（第三方客服脚本挂件）新增 6 个文件（`web/src/lib/customer-service-script.ts`、`web/src/components/customer-service-script-widget.tsx` 及 3 个 `__tests__` 测试 + `customer-service-script-section.tsx`），另外它**首次进入改动清单**的修改文件只有 `web/src/routes/__root.tsx` 一个；其余被它改到的文件（`setting/console_setting/*`、`controller/{option,misc,customer_service_test}.go`、`web/src/features/system-settings/**`、`web/src/features/auth/types.ts`、7 个 i18n locale）在早期业务阶段就已在清单内，**§3 的净增量是 +6 新增 / +1 修改**。
+其中**业务**文件 147 个（45 新增 + 102 修改），**非业务** 4 个（见 §0）。业务十三（聊天选 Key）自身改了 17 个文件（6 新增 + 11 修改），全部是前端；由于其中 7 个 i18n locale 在业务十二阶段就已在改动清单内，**§3 的净增量是 +6 新增 / +4 修改**。
 
-Go 文件按目录细分的修改数：`controller` 10、`model` 6、`relay` 5、`router` 3、`service` 3、`setting` 3、`common` 2、`constant` 2、`i18n` 2、`relaykit` 2 = **38**（**B7-1 后端仅改 `setting/console_setting` 与 `controller`，未新增 Go 文件**）。
+Go 文件按目录细分的修改数：`controller` 10、`model` 6、`relay` 5、`router` 3、`service` 3、`setting` 3、`common` 2、`constant` 2、`i18n` 2、`relaykit` 2 = **38**（**业务十三未改任何 Go 文件**）。
 前端修改数 Top：`web/src/features/**`、`web/src/i18n`、`web/src/lib`、`web/src/context`、`web/src/components`。
 
-### 3.2 新增文件（56 个业务文件）
+### 3.2 新增文件（45 个业务文件）
 
 ```
 common/error_rule.go
@@ -410,10 +412,6 @@ service/error_sanitizer.go
 service/error_sanitizer_test.go
 service/pseudo_error_detector.go
 service/pseudo_error_detector_test.go
-web/src/components/__tests__/customer-service-script-widget.test.tsx
-web/src/components/customer-service-script-widget.tsx
-web/src/components/layout/components/__tests__/cc-switch-menu-item.test.tsx
-web/src/components/layout/components/cc-switch-menu-item.tsx
 web/src/features/channels/components/__tests__/pseudo-200-i18n.test.tsx
 web/src/features/channels/lib/__tests__/pseudo-200-configuration.test.ts
 web/src/features/chat/components/__tests__/chat-key-dialog.test.tsx
@@ -422,29 +420,12 @@ web/src/features/chat/components/chat-key-dialog.tsx
 web/src/features/chat/components/chat-key-prompt-provider.tsx
 web/src/features/chat/hooks/use-chat-key-prompt.ts
 web/src/features/home/__tests__/root-route.test.tsx
-web/src/features/keys/components/cc-switch-import-provider.tsx
-web/src/features/landing-v2/components/compatible-tools.tsx
-web/src/features/landing-v2/components/customer-service-floating.tsx
-web/src/features/landing-v2/components/customer-service.tsx
-web/src/features/landing-v2/components/features-summary.tsx
-web/src/features/landing-v2/components/hero.tsx
-web/src/features/landing-v2/components/model-browser.tsx
-web/src/features/landing-v2/components/quickstart.tsx
-web/src/features/landing-v2/constants.ts
-web/src/features/landing-v2/hooks/use-landing-data.ts
-web/src/features/landing-v2/index.tsx
-web/src/features/landing-v2/types.ts
+web/src/features/landing-v2/**                      (11 文件)
 web/src/features/profile/__tests__/checkin-topup-gate.test.tsx
-web/src/features/system-settings/content/__tests__/customer-service-script.test.tsx
-web/src/features/system-settings/content/customer-service-script-section.tsx
 web/src/features/system-settings/content/customer-service-section.tsx
 web/src/features/system-settings/general/__tests__/home-page-style.test.tsx
-web/src/features/system-settings/request-policies/__tests__/error-rule-conflicts.test.ts
 web/src/features/system-settings/request-policies/error-mapping-section.tsx
-web/src/features/system-settings/request-policies/error-rule-conflicts.ts
 web/src/features/usage-logs/lib/__tests__/model-mapping-visibility.test.ts
-web/src/lib/__tests__/customer-service-script.test.ts
-web/src/lib/customer-service-script.ts
 web/src/lib/image-compress.ts
 web/src/routes/landing-v2.tsx
 web/src/stores/chat-key-preference-store.ts
@@ -458,7 +439,7 @@ web/src/stores/chat-key-preference-store.ts
 `MaxRegisterNumPerIP`、`AffiliateCommissionRate`、`AffiliateDescription`、`DefaultThemeSettings`、`HomePageStyle`、`ErrorSanitizationEnabled`、`ErrorMappingRules`
 
 **`console_setting`（JSON，落 options）**：
-`customer_service`（结构体 `console_setting.CustomerService`）、`customer_service_enabled`、`customer_service_script`（字符串，第三方挂件脚本/URL）、`customer_service_script_enabled`（布尔）
+`customer_service`（结构体 `console_setting.CustomerService`）、`customer_service_enabled`
 
 **`checkin_setting`（JSON，落 options）**：
 `require_topup`、`block_automated_ua`、`max_checkin_per_ip`
@@ -483,8 +464,8 @@ git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（170 文件改动，含新增的 `relay/channel/opencode/` 包、`web/src/features/chat/components/`、报错映射冲突处理模块与第三方客服脚本挂件）。
-> 验证方式（可复现）：`git worktree add --detach 56758edf9` → `git apply --check`（exit 0）→ `git apply` → `git add -A && git write-tree`，树哈希与交付仓库 `HEAD^{tree}` 相同，`git status --porcelain` 恰好 170 条。**树哈希不要提前写死**（文档在补丁内，改文档即改哈希）。
+**已验证**：该补丁可干净应用，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（`eacf997c6…`，163 文件改动，含新增的 `relay/channel/opencode/` 包、`web/src/features/chat/components/` 与报错映射冲突处理模块）。
+> 验证方式（可复现）：`git worktree add --detach 56758edf9` → `git apply --check`（exit 0）→ `git apply` → `git add -A && git write-tree`，树哈希与交付仓库 `HEAD^{tree}` 相同，`git status --porcelain` 恰好 151 条。
 > `git apply` 可能提示几行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
 ### 4.2 方式 B：变基到更新的官方版本
@@ -570,12 +551,17 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 前端 `typecheck` | exit 0（含业务十三与官方同步后重跑） |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端 `src/features/chat` | **2 文件 / 10 用例**全过（业务十三 8 例 + B13-r1 新增 2 例） |
-| 前端全量 `vitest` | **186 文件**（185 通过 / 1 失败）、**2247 用例**（2221 通过 + 26 跳过）。基线为 183 文件 / 2225 用例，本次**净增 3 个测试文件 / 22 个用例**，全部通过。唯一失败是 `scripts/oxlint/__tests__/intl-locale.test.ts`（26 个用例因此全部跳过）在 **`%TEMP%` 不可写**时 `mkdtempSync` 报 `EPERM` —— 纯环境问题：本次**反复实测**该文件在可写临时目录下 **26/26 全过**，且与本次改动文件无任何交集（合并官方 20 提交后为 181/2209；B13-r1 前为 174/2157） |
+| 前端全量 `vitest` | **183 文件 / 2225 用例**全过（合并官方 20 提交后为 181/2209；B13-r1 前为 174/2157） |
 | 改动前端文件 lint | 业务十三新增/改动的 9 个文件（不含路由）：**0 warning / 0 error**；第 10 个 `$chatId.tsx` 有 **1 error**（`react/iframe-missing-sandbox`），位于**官方原有行且基线即存在**（见 §6.2-6）。`bun run lint` 全仓基线仍为 66 warn / 182 err |
 | 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 53 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
+<<<<<<< HEAD
 | 前端 i18n | 7 语言 × **7077** 键，0 缺失/多余/重复（B7-1 第三方客服挂件 +10 键，复核补信任告警 +2 键；冲突提示 +3 键；合并官方 +102 键后；合并前为 6976） |
 | 报错规则冲突 UI（实测） | `oxlint` 改动 4 文件 **0 warn / 0 err**；`typecheck` exit 0；`vitest run src/features/system-settings/request-policies/__tests__/` **4 文件 / 58 用例全过**（新增 `error-rule-conflicts.test.ts` 6 例覆盖子串重叠/兜底规则/状态码不重叠/禁用规则/全角与换行分隔符/ID 去重，`settings.test.tsx` 新增 2 例覆盖冲突高亮+保存拦截与无冲突正常保存） |
 | 第三方客服脚本挂件 B7-1（实测） | 后端 `go build ./...` exit 0、`go vet` exit 0、`gofmt -l` 空；`TestCustomerServiceScriptValidation` + `TestCustomerServiceScriptURLRules` **PASS**（前者接受裸 URL / 完整 `<script async defer src=...>` / 空串，拒绝内联脚本体、`onload=` 属性、`javascript:`、`ftp://`、未闭合标签、裸 `javascript:`；后者为 20 条接受 + 27 条拒绝的 URL 边界表，含内网/IPv6/端口越界/userinfo/反斜杠/非 ASCII 空白）；`TestGetStatusCustomerService` 断言通过（仅 cleanup 阶段报 Windows 文件占用，见 §6.2-3）。前端 `tsgo -b` exit 0；`oxlint` 改动文件 **0 warn / 0 err**、`oxfmt --check` 通过；`vitest` 3 文件 / **30 用例全过**（解析器 16 例、全局注入组件 6 例、后台表单 8 例，含「先存脚本再开开关」「非法输入拒绝开启」「信任告警可见」「不重复弹成功提示」）；前后端 60 条边界用例差分比对 **0 分歧**；`rsbuild build` exit 0 |
+=======
+| 前端 i18n | 7 语言 × **7065** 键，0 缺失/多余/重复（冲突提示 +3 键；合并官方 +102 键后；合并前为 6976） |
+| 报错规则冲突 UI（实测） | `oxlint` 改动 4 文件 **0 warn / 0 err**；`typecheck` exit 0；`vitest run src/features/system-settings/request-policies/__tests__/` **4 文件 / 58 用例全过**（新增 `error-rule-conflicts.test.ts` 6 例覆盖子串重叠/兜底规则/状态码不重叠/禁用规则/全角与换行分隔符/ID 去重，`settings.test.tsx` 新增 2 例覆盖冲突高亮+保存拦截与无冲突正常保存） |
+>>>>>>> parent of 5c83d38dc (feat(console): add global third-party customer service widget)
 | 后端 i18n | 3 语言 × 265 键 |
 | **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
 | **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |
@@ -642,6 +628,7 @@ go test ./service/ -run 'TestGetChannelDefaultPseudo200RulesRoundTrip'
 # 防误封短路仍在
 grep -A2 'func ShouldDisableChannel' service/channel.go | grep ErrorCodePromptBlocked
 
+<<<<<<< HEAD
 # 改动规模（相对官方基线 56758edf9：A=59 M=111 D=0，含 3 个非业务新增文件）
 git diff --name-status 56758edf9..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c
 
@@ -651,6 +638,10 @@ go test ./controller/ -run 'TestCustomerServiceScript'
 cd web && bun x vitest run src/lib/__tests__/customer-service-script.test.ts \
   src/components/__tests__/customer-service-script-widget.test.tsx \
   src/features/system-settings/content/__tests__/customer-service-script.test.tsx
+=======
+# 改动规模
+git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=48 M=103 D=0
+>>>>>>> parent of 5c83d38dc (feat(console): add global third-party customer service widget)
 
 # 首页风格开关：默认必须是 classic，且非法值不落库
 grep -n 'HomePageStyle' model/option.go controller/misc.go
@@ -684,7 +675,7 @@ go test ./controller/ ./model/ -count=1 -timeout 60m -v \
 | 交付物 | 路径 |
 |---|---|
 | 完整源码仓库 | `new-api-official-11biz/` |
-| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（约 1.8 MB，含 170 个改动文件）。注意：它由 `HEAD^{tree}` 与 `56758edf9` 的差集生成，**连本手册与 `README_CN.md` 本身也在补丁里**，所以任何一次改动（含改文档）都会让它变；**以文件实际大小为准，不要引用固定字节数**。重新生成的命令见 §0 的 `git commit-tree` 代码块 |
+| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（约 890 KB，含 151 个改动文件）。注意：它由 `HEAD^{tree}` 与 `d04c118c8` 的差集生成，**连本手册与 `README_CN.md` 本身也在补丁里**，所以任何一次改动（含改文档）都会让它变；**以文件实际大小为准，不要引用固定字节数**。重新生成的命令见 §0 的 `git commit-tree` 代码块 |
 | 技术手册（唯一权威，AI 用） | `UPGRADE_GUIDE.md`（本文件） |
 | 白话说明（非技术人员） | `README_CN.md` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
