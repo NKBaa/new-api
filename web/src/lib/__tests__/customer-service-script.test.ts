@@ -43,6 +43,60 @@ describe('isLoadableScriptUrl', () => {
     expect(isLoadableScriptUrl('data:text/javascript,alert(1)')).toBe(false)
     expect(isLoadableScriptUrl('')).toBe(false)
   })
+
+  /**
+   * These cases are the contract shared with the server's
+   * `validateExternalScriptURL`. If the two drift, the admin form shows a value
+   * as valid and the save then fails, so each rule is pinned here explicitly.
+   */
+  test('accepts internal hosts, explicit ports and percent-encoded paths', () => {
+    expect(isLoadableScriptUrl('https://localhost/embed.js')).toBe(true)
+    expect(isLoadableScriptUrl('https://maxkb/embed.js')).toBe(true)
+    expect(isLoadableScriptUrl('https://127.0.0.1:8080/embed.js')).toBe(true)
+    expect(isLoadableScriptUrl('https://[2001:db8::1]/embed.js')).toBe(true)
+    expect(isLoadableScriptUrl('https://example.com:8443/embed.js')).toBe(true)
+    expect(isLoadableScriptUrl('https://example.com/a%20b.js')).toBe(true)
+    expect(isLoadableScriptUrl('HTTPS://MAXKB.EXAMPLE.COM/embed.js')).toBe(true)
+  })
+
+  test('rejects credentials embedded in the URL', () => {
+    expect(isLoadableScriptUrl('https://user:pass@example.com/a.js')).toBe(
+      false
+    )
+    expect(isLoadableScriptUrl('https://user@example.com/a.js')).toBe(false)
+  })
+
+  test('rejects out-of-range and non-numeric ports', () => {
+    expect(isLoadableScriptUrl('https://example.com:0/a.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://example.com:65536/a.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://example.com:abc/a.js')).toBe(false)
+  })
+
+  test('rejects raw spaces, backslashes and invisible characters', () => {
+    expect(isLoadableScriptUrl('https://example.com/a b.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://exa mple.com/a.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://example.com/a\tb.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://example.com/a.js\r\nHost: x')).toBe(
+      false
+    )
+    expect(isLoadableScriptUrl('https://example.com\\@evil.com/a.js')).toBe(
+      false
+    )
+    expect(isLoadableScriptUrl('https://trusted.com\\evil.com/a.js')).toBe(
+      false
+    )
+    // Non-ASCII whitespace: `\s` and Go's unicode.IsSpace disagree on these.
+    expect(isLoadableScriptUrl('https://example.com/a\u00a0b.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://example.com/a\u2028b.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://example.com/a\u3000b.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://example.com/a\u0085b.js')).toBe(false)
+    expect(isLoadableScriptUrl('https://example.com/a\ufeffb.js')).toBe(false)
+  })
+
+  test('rejects URLs without a host or scheme', () => {
+    expect(isLoadableScriptUrl('https://')).toBe(false)
+    expect(isLoadableScriptUrl('/a.js')).toBe(false)
+  })
 })
 
 describe('parseCustomerServiceScript', () => {
@@ -87,6 +141,14 @@ describe('parseCustomerServiceScript', () => {
     )
     expect(parsed?.async).toBe(false)
     expect(parsed?.defer).toBe(false)
+  })
+
+  test('trims whitespace inside the src value', () => {
+    expect(
+      parseCustomerServiceScript(
+        '<script src=" https://example.com/a.js "></script>'
+      )?.src
+    ).toBe('https://example.com/a.js')
   })
 
   test('rejects inline script bodies', () => {

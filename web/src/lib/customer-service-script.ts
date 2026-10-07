@@ -37,16 +37,63 @@ const ASYNC_ATTRIBUTE_PATTERN = /(?:^|\s)async(?=[\s/>]|$)/i
 const DEFER_ATTRIBUTE_PATTERN = /(?:^|\s)defer(?=[\s/>]|$)/i
 const EVENT_HANDLER_PATTERN = /\bon[a-z]+\s*=/i
 
-/** Only absolute http(s) URLs are loadable as a third-party widget script. */
+/**
+ * Only absolute http(s) URLs are loadable as a third-party widget script.
+ *
+ * These rules mirror the server's `validateExternalScriptURL` one-for-one, so a
+ * value the admin form accepts is never rejected on save. Keep the two in step
+ * when either changes:
+ * - rejects whitespace, control characters and backslashes: the WHATWG parser
+ *   treats `\` as `/`, so `https://a.com\@b.com/x.js` parses differently in a
+ *   browser and in Go, and raw spaces are not valid URL characters
+ * - requires the http/https scheme and a non-empty hostname, so a bare
+ *   `javascript:` or relative path cannot pass
+ * - rejects userinfo: the value is served to every visitor via `/api/status`
+ * - requires any port to be in range 1-65535
+ *
+ * The forbidden-character test below is spelled out per code point rather than
+ * using `\s`, because JavaScript and Go disagree on what counts as whitespace
+ * (`\s` also matches U+FEFF and U+00A0; Go's unicode.IsSpace also matches
+ * U+0085). An explicit list is the only way to keep both sides provably
+ * identical; it mirrors `isForbiddenScriptURLRune` in the Go validator.
+ */
+function isForbiddenUrlChar(codePoint: number): boolean {
+  if (codePoint <= 0x20) return true
+  if (codePoint === 0x7f || codePoint === 0x85 || codePoint === 0xa0) {
+    return true
+  }
+  if (codePoint === 0x1680) return true
+  if (codePoint >= 0x2000 && codePoint <= 0x200a) return true
+  if (codePoint === 0x2028 || codePoint === 0x2029) return true
+  if (codePoint === 0x202f || codePoint === 0x205f) return true
+  if (codePoint === 0x3000 || codePoint === 0xfeff) return true
+  return codePoint === 0x5c // backslash: parsed as "/" by browsers, rejected by Go
+}
+
 export function isLoadableScriptUrl(value: string): boolean {
   const trimmed = value.trim()
   if (!trimmed) return false
+  for (const char of trimmed) {
+    if (isForbiddenUrlChar(char.codePointAt(0) as number)) return false
+  }
+
+  let parsed: URL
   try {
-    const parsed = new URL(trimmed)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+    parsed = new URL(trimmed)
   } catch {
     return false
   }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  if (!parsed.hostname) return false
+  if (parsed.username || parsed.password) return false
+
+  if (parsed.port) {
+    const port = Number(parsed.port)
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return false
+  }
+
+  return true
 }
 
 export function parseCustomerServiceScript(

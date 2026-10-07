@@ -99,6 +99,71 @@ func TestCustomerServiceScriptValidation(t *testing.T) {
 		"javascript:alert(1)", "CustomerServiceScript"))
 }
 
+// TestCustomerServiceScriptURLRules 固定 URL 判定边界。
+//
+// 这些用例同时是前端 isLoadableScriptUrl 的契约：两边的判定必须逐条一致，
+// 否则会出现“后台表单显示合法、点保存却被服务端拒绝”的分叉。
+func TestCustomerServiceScriptURLRules(t *testing.T) {
+	accept := []string{
+		"https://maxkb.example.com/embed.js",
+		"http://maxkb.example.com/embed.js",
+		"HTTPS://MAXKB.EXAMPLE.COM/embed.js",
+		"https://example.com:8443/embed.js",
+		"https://example.com:80/embed.js",
+		"https://example.com/a%20b.js",
+		"https://xn--r8jz45g.jp/embed.js",
+		// 内网/本机部署是真实场景，不得误杀
+		"https://localhost/embed.js",
+		"https://maxkb/embed.js",
+		"https://127.0.0.1:8080/embed.js",
+		"https://[2001:db8::1]/embed.js",
+		// 引号两侧空白属于标签书写，不属于 URL
+		`<script src=" https://example.com/embed.js "></script>`,
+		`<script src='https://example.com/embed.js'></script>`,
+		`<script src=https://example.com/embed.js></script>`,
+		`<script SRC="https://example.com/embed.js"></script>`,
+		// 未识别的额外属性会被加载端忽略，不构成风险
+		`<script id="maxkb" data-token="x" src="https://example.com/embed.js"></script>`,
+		// 复制粘贴常见的首尾空白/换行由外层 TrimSpace 去掉，属于正常输入
+		"  https://example.com/embed.js  ",
+		"https://example.com/embed.js\n",
+	}
+	for _, value := range accept {
+		assert.NoError(t, console_setting.ValidateConsoleSettings(value, "CustomerServiceScript"), value)
+	}
+
+	reject := []string{
+		"https://example.com/a b.js",
+		"https://exa mple.com/a.js",
+		"https://example.com/a\tb.js",
+		"https://example.com/a.js\r\nHost: evil.com",
+		`https://example.com\@evil.com/a.js`,
+		`https://trusted.com\evil.com/a.js`,
+		"https://user:pass@example.com/a.js",
+		"https://user@example.com/a.js",
+		"https://example.com:0/a.js",
+		"https://example.com:65536/a.js",
+		"https://example.com:abc/a.js",
+		// 非 ASCII 空白与不可见字符：Go 与 JS 的空白定义不同，逐一固定
+		"https://example.com/a\u00a0b.js",
+		"https://example.com/a\u2028b.js",
+		"https://example.com/a\u3000b.js",
+		"https://example.com/a\u0085b.js",
+		"https://example.com/a\ufeffb.js",
+		"https://\u00a0example.com/a.js",
+		"https://",
+		"//example.com/a.js",
+		"/a.js",
+		"ftp://example.com/a.js",
+		"data:text/javascript,alert(1)",
+		`<script src="https://example.com/a.js" onerror = "alert(1)"></script>`,
+		`<script src=" "></script>`,
+	}
+	for _, value := range reject {
+		assert.Error(t, console_setting.ValidateConsoleSettings(value, "CustomerServiceScript"), value)
+	}
+}
+
 func TestOptionLogoValidation(t *testing.T) {
 	db, _ := newAuditTestDatabase(t, "sqlite", "")
 	previousDB := model.DB

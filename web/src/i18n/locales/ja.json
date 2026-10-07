@@ -7074,6 +7074,8 @@
     "Layout of the site root route. Custom home page content takes precedence over both layouts.": "サイトのルートで使用するレイアウト。カスタムのホームページ内容が両方のレイアウトより優先されます。",
     "Conflicting rules": "競合するルール",
     "Resolve the conflicting rules before saving": "保存する前に競合するルールを解決してください",
-    "{{first}} conflicts with {{second}}": "{{first}} は {{second}} と競合しています"
+    "{{first}} conflicts with {{second}}": "{{first}} は {{second}} と競合しています",
+    "Only load scripts you trust": "信頼できるスクリプトのみを読み込む",
+    "The script runs with full access to every page of this site, including the login and admin pages, and can read or modify anything a signed-in visitor can see. Only embed a vendor you trust, and prefer an official domain over a third-party mirror.": "このスクリプトは、ログインページと管理画面を含むサイトのすべてのページで完全な権限で実行され、サインイン済みの訪問者が閲覧できるあらゆる内容を読み取り・変更できます。信頼できるベンダーのみを埋め込み、サードパーティのミラーよりも公式ドメインを優先してください。"
   }
 }

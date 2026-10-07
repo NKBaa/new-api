@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 
@@ -48,7 +49,25 @@ beforeEach(() => {
   vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
 })
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('CustomerServiceScriptSection', () => {
+  /**
+   * The widget runs site-wide with the visitor's own permissions, so the admin
+   * has to be told that before enabling it; a silent switch would let someone
+   * enable third-party code without realising its reach.
+   */
+  test('warns that the script runs with full page access', () => {
+    renderSection('')
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Only load scripts you trust'
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent(/login and admin pages/)
+  })
+
   test('saves a complete vendor embed tag', async () => {
     const user = userEvent.setup()
     const input = renderSection('')
@@ -150,5 +169,31 @@ describe('CustomerServiceScriptSection', () => {
         name: 'Enable third-party customer service widget',
       })
     ).toHaveAttribute('aria-checked', 'false')
+  })
+
+  /**
+   * `useUpdateOption` already reports success for every successful mutation, so
+   * the section must not toast again: two options are written when enabling with
+   * a pending script, and announcing each would stack three identical toasts on
+   * one click. The hook's two messages stay; the section's own is dropped.
+   */
+  test('does not stack an extra success toast on top of the shared hook', async () => {
+    const successToast = vi.spyOn(toast, 'success')
+    const user = userEvent.setup()
+    const input = renderSection('')
+
+    await user.type(input, 'https://maxkb.example.com/embed.js')
+    await user.click(
+      screen.getByRole('switch', {
+        name: 'Enable third-party customer service widget',
+      })
+    )
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(successToast).toHaveBeenCalledTimes(2))
+    const messages = vi
+      .mocked(toast.success)
+      .mock.calls.map((call) => String(call[0]))
+    expect(messages).not.toContain('Settings saved successfully')
   })
 })

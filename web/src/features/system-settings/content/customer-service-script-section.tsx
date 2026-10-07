@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { AlertCircle, Save } from 'lucide-react'
+import { AlertCircle, Save, ShieldAlert } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -104,7 +105,6 @@ export function CustomerServiceScriptSection(
         value: checked,
       })
       setIsEnabled(checked)
-      toast.success(t('Settings saved successfully'))
     } catch (error) {
       handleServerError(error, t('Failed to save settings'))
     } finally {
@@ -131,7 +131,6 @@ export function CustomerServiceScriptSection(
         key: 'console_setting.customer_service_script',
         value: trimmed,
       })
-      toast.success(t('Settings saved successfully'))
     } catch (error) {
       handleServerError(error, t('Failed to save settings'))
     } finally {
@@ -147,6 +146,16 @@ export function CustomerServiceScriptSection(
             'Embed an external customer service or AI assistant widget (such as MaxKB) on every page. Only external http(s) scripts are allowed; inline JavaScript is rejected.'
           )}
         </p>
+
+        <Alert>
+          <ShieldAlert aria-hidden='true' />
+          <AlertTitle>{t('Only load scripts you trust')}</AlertTitle>
+          <AlertDescription className='text-xs'>
+            {t(
+              'The script runs with full access to every page of this site, including the login and admin pages, and can read or modify anything a signed-in visitor can see. Only embed a vendor you trust, and prefer an official domain over a third-party mirror.'
+            )}
+          </AlertDescription>
+        </Alert>
 
         <div className='space-y-2'>
           <Label htmlFor='customer-service-script'>

@@ -7074,6 +7074,8 @@
     "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Layout of the site root route. Custom home page content takes precedence over both layouts.",
     "Conflicting rules": "Conflicting rules",
     "Resolve the conflicting rules before saving": "Resolve the conflicting rules before saving",
-    "{{first}} conflicts with {{second}}": "{{first}} conflicts with {{second}}"
+    "{{first}} conflicts with {{second}}": "{{first}} conflicts with {{second}}",
+    "Only load scripts you trust": "Only load scripts you trust",
+    "The script runs with full access to every page of this site, including the login and admin pages, and can read or modify anything a signed-in visitor can see. Only embed a vendor you trust, and prefer an official domain over a third-party mirror.": "The script runs with full access to every page of this site, including the login and admin pages, and can read or modify anything a signed-in visitor can see. Only embed a vendor you trust, and prefer an official domain over a third-party mirror."
   }
 }
