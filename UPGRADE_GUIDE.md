@@ -161,22 +161,6 @@ AI 修改本仓库时必须同时满足：
 - **存储**：`console_setting`（注册于 `config.GlobalConfig`，落 `options` 表）—— **0 DDL**
 - **移植注意**：官方基线**没有** `CustomerService` 字段，是本次新增；`validation.go` 的 `case "CustomerService"` 分支不可省（否则后台保存会绕过校验）。
 
-<<<<<<< HEAD
-### B7-1 · 第三方客服脚本挂件（全局注入）
-- **文件**：`setting/console_setting/config.go`、`setting/console_setting/validation.go`、`controller/option.go`、`controller/misc.go`、`controller/customer_service_test.go`、`web/src/lib/customer-service-script.ts`(新)、`web/src/components/customer-service-script-widget.tsx`(新)、`web/src/routes/__root.tsx`、`web/src/features/system-settings/content/customer-service-script-section.tsx`(新)
-- **符号**：`ConsoleSetting.CustomerServiceScript`/`CustomerServiceScriptEnabled`、`validateCustomerServiceScript()`、`validateExternalScriptURL()`、`isForbiddenScriptURLRune()`、`parseCustomerServiceScript()`、`isLoadableScriptUrl()`、`CustomerServiceScriptWidget`
-- **存储**：`console_setting.customer_service_script`（字符串）、`console_setting.customer_service_script_enabled`（布尔）—— **0 DDL**
-- **机制**：后台「内容设置 → 客服信息预设」页粘贴厂商嵌入代码（例如 MaxKB 的 `<script async defer src="...">`）或裸脚本 URL，开启后 `CustomerServiceScriptWidget`（挂在 `__root.tsx`）用 DOM API 创建 `<script>` 加载，**按 `src` 去重、变更时重新注入、卸载时移除**。前端**不添加**厂商没写的属性（例如不强制 `referrerPolicy`），避免破坏按来源校验的挂件。
-- **开关与保存的耦合**：直接打开开关会**先保存当前输入框里的脚本再置开关**，避免出现「开关已开但脚本没落库、全站什么都不加载」的半成品状态；输入非法时拒绝开启并给出提示。
-- **安全边界**：前端 `parseCustomerServiceScript` 与后端 `validateCustomerServiceScript` 采取同一策略——**只允许外部 http(s) 脚本**，内联脚本体、`on*=` 事件属性、`javascript:`/`data:`/`ftp:` 协议一律拒绝；校验以后端为准，前端仅做即时反馈。
-- **URL 判定（复核后收紧）**：挂件 URL 走**独立**的 `validateExternalScriptURL()`，**刻意不复用** `validateURL()`——后者只接受带点域名或 IPv4 字面量，会把 `localhost`、内网单标签主机名与 IPv6 一并拒绝，而挂件脚本完全可能部署在内网，属误杀（`validateURL()` 与其 `urlRegex` 保持逐字节未改动，Logo/客服链接行为不受影响）。收紧后的规则：拒绝空白/不可见控制字符/反斜杠、拒绝 URL 内嵌用户名密码（该值经公开的 `/api/status` 下发给所有访客）、端口必须在 1–65535；内网域名、`localhost`、IPv6、自定义端口仍允许。`src` 属性取值两侧的空白先 `TrimSpace` 再校验，与前端 `.trim()` 对齐。
-- **前后端一致性（实测）**：前端 `isLoadableScriptUrl` 与后端 `validateExternalScriptURL` 逐条镜像。**空白字符集刻意写死**（不依赖 Go 的 `unicode.IsSpace`，也不用 JS 的 `\s`）——两者对「空白」定义不同（Go 多 U+0085，JS `\s` 多 U+FEFF 与 U+00A0），任一宽松判定都会让两边结论分叉。已用 60 条边界用例做**差分比对**（Go 侧跑真实校验、JS 侧跑真实解析器）：**0 处分歧**（空串/纯空白两条语义等价：Go 接受=清除配置，前端返回 `null`=不注入，均为「无挂件」）。
-- **信任范围告警**：后台该板块用 `Alert` 明确提示「脚本以完整权限运行在全站页面（含登录页与管理后台）」，把「全局注入」这一固有风险显式告知管理员。**本项目不提供域名白名单、SRI 校验或按页面范围限制**——这是「全局挂件」设计本身的固有属性，正则校验无法消除。
-- **成功提示去重**：`useUpdateOption` 已在自身 `onSuccess` 里 `toast.success`，板块内原本又弹一次，实测「开启开关且需先存脚本」这一路径会连弹 **3 条**相同提示；已移除板块内的 `toast.success`，保留 hook 的提示（错误提示仍由板块负责）。
-- **移植注意**：官方基线没有这两个字段；`controller/option.go` 的 `case "console_setting.customer_service_script"` 分支与 `/api/status` 的 `customer_service_script`（仅在开关为 true 时下发）都不可省，否则要么绕过校验、要么前台拿不到配置。
-
-=======
->>>>>>> parent of 5c83d38dc (feat(console): add global third-party customer service widget)
 ### B8 · 本地图片压缩直传（零图床）
 - **文件**：`web/src/lib/image-compress.ts`(新)、`controller/option.go`、`common/constants.go`、`web/src/features/system-settings/**`
 - **符号**：`image-compress.ts` 导出压缩函数；支持文件选择 + 拖拽 + 剪贴板 `Ctrl+V`
@@ -521,9 +505,9 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64）。
-  - **✅ 当前 `latest` 就是最新交付代码**：对应提交 `40235c090`（B7-1 第三方客服脚本挂件 + URL 判定复核收紧与信任范围告警；含此前全部 14 项功能与官方合并），构建 run `37611683950`（run number 95），**success**，整任务 25 分 33 秒。摘要 `sha256:8da3631ea57fbe398171eb1374aea7fb575f34e42e72ea3ed98946c1445ad5aa`。**14 项业务 + 第三方客服脚本挂件（含前后端 URL 判定对齐与信任告警）+ 错误映射规则冲突前端拦截与高亮 + 未匹配错误原文保留 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订 + 官方 20 个提交，全都在里面。**
-  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；后台「系统设置 → 请求策略」新增两条相同或重叠关键词规则 → 立即高亮红色 Badge 并拦截保存；后台「内容设置 → 客服信息预设」出现**「第三方客服挂件」**板块，填入脚本 URL 打开开关 → `curl /api/status` 随后能看到 `customer_service_script` 字段且页面上加载了该外链脚本 → B7-1 已就绪；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.41`** → 版本号已抬高。
-  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `8da3631e…`）。
+  - **✅ 当前 `latest` 就是最新交付代码**：对应提交 `8c177d193`（前端高亮与拦截错误映射规则冲突；含此前全部 14 项功能与官方合并），构建 run `36974257733`（run number 90），**success**，整任务 17 分 53 秒。摘要 `sha256:23209e1d0ac9053cacf64aca036fc5c96e1c43e03ad4e186c6086f9d16bf9416`，与标签 `sha-8c177d19353d13b50f9de0ae0bbd73808a8e26ff` **完全一致**。**14 项业务 + 错误映射规则冲突前端拦截与高亮 + 未匹配错误原文保留 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订 + 官方 20 个提交，全都在里面。**
+  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；后台「系统设置 → 请求策略」新增两条相同或重叠关键词规则 → 立即高亮红色 Badge 并拦截保存；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.41`** → 版本号已抬高。
+  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `23209e1d…`）。
   - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
     - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
     - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
@@ -554,14 +538,8 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 前端全量 `vitest` | **183 文件 / 2225 用例**全过（合并官方 20 提交后为 181/2209；B13-r1 前为 174/2157） |
 | 改动前端文件 lint | 业务十三新增/改动的 9 个文件（不含路由）：**0 warning / 0 error**；第 10 个 `$chatId.tsx` 有 **1 error**（`react/iframe-missing-sandbox`），位于**官方原有行且基线即存在**（见 §6.2-6）。`bun run lint` 全仓基线仍为 66 warn / 182 err |
 | 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 53 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
-<<<<<<< HEAD
-| 前端 i18n | 7 语言 × **7077** 键，0 缺失/多余/重复（B7-1 第三方客服挂件 +10 键，复核补信任告警 +2 键；冲突提示 +3 键；合并官方 +102 键后；合并前为 6976） |
-| 报错规则冲突 UI（实测） | `oxlint` 改动 4 文件 **0 warn / 0 err**；`typecheck` exit 0；`vitest run src/features/system-settings/request-policies/__tests__/` **4 文件 / 58 用例全过**（新增 `error-rule-conflicts.test.ts` 6 例覆盖子串重叠/兜底规则/状态码不重叠/禁用规则/全角与换行分隔符/ID 去重，`settings.test.tsx` 新增 2 例覆盖冲突高亮+保存拦截与无冲突正常保存） |
-| 第三方客服脚本挂件 B7-1（实测） | 后端 `go build ./...` exit 0、`go vet` exit 0、`gofmt -l` 空；`TestCustomerServiceScriptValidation` + `TestCustomerServiceScriptURLRules` **PASS**（前者接受裸 URL / 完整 `<script async defer src=...>` / 空串，拒绝内联脚本体、`onload=` 属性、`javascript:`、`ftp://`、未闭合标签、裸 `javascript:`；后者为 20 条接受 + 27 条拒绝的 URL 边界表，含内网/IPv6/端口越界/userinfo/反斜杠/非 ASCII 空白）；`TestGetStatusCustomerService` 断言通过（仅 cleanup 阶段报 Windows 文件占用，见 §6.2-3）。前端 `tsgo -b` exit 0；`oxlint` 改动文件 **0 warn / 0 err**、`oxfmt --check` 通过；`vitest` 3 文件 / **30 用例全过**（解析器 16 例、全局注入组件 6 例、后台表单 8 例，含「先存脚本再开开关」「非法输入拒绝开启」「信任告警可见」「不重复弹成功提示」）；前后端 60 条边界用例差分比对 **0 分歧**；`rsbuild build` exit 0 |
-=======
 | 前端 i18n | 7 语言 × **7065** 键，0 缺失/多余/重复（冲突提示 +3 键；合并官方 +102 键后；合并前为 6976） |
 | 报错规则冲突 UI（实测） | `oxlint` 改动 4 文件 **0 warn / 0 err**；`typecheck` exit 0；`vitest run src/features/system-settings/request-policies/__tests__/` **4 文件 / 58 用例全过**（新增 `error-rule-conflicts.test.ts` 6 例覆盖子串重叠/兜底规则/状态码不重叠/禁用规则/全角与换行分隔符/ID 去重，`settings.test.tsx` 新增 2 例覆盖冲突高亮+保存拦截与无冲突正常保存） |
->>>>>>> parent of 5c83d38dc (feat(console): add global third-party customer service widget)
 | 后端 i18n | 3 语言 × 265 键 |
 | **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
 | **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |
@@ -628,20 +606,8 @@ go test ./service/ -run 'TestGetChannelDefaultPseudo200RulesRoundTrip'
 # 防误封短路仍在
 grep -A2 'func ShouldDisableChannel' service/channel.go | grep ErrorCodePromptBlocked
 
-<<<<<<< HEAD
-# 改动规模（相对官方基线 56758edf9：A=59 M=111 D=0，含 3 个非业务新增文件）
-git diff --name-status 56758edf9..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c
-
-# 第三方客服脚本挂件：后端校验必须挡住内联脚本与事件属性，前端解析器行为一致
-# （URL 边界表 TestCustomerServiceScriptURLRules 与前端 isLoadableScriptUrl 互为契约）
-go test ./controller/ -run 'TestCustomerServiceScript'
-cd web && bun x vitest run src/lib/__tests__/customer-service-script.test.ts \
-  src/components/__tests__/customer-service-script-widget.test.tsx \
-  src/features/system-settings/content/__tests__/customer-service-script.test.tsx
-=======
 # 改动规模
 git diff --name-status d04c118c8..HEAD | awk '{print substr($1,1,1)}' | sort | uniq -c   # A=48 M=103 D=0
->>>>>>> parent of 5c83d38dc (feat(console): add global third-party customer service widget)
 
 # 首页风格开关：默认必须是 classic，且非法值不落库
 grep -n 'HomePageStyle' model/option.go controller/misc.go

@@ -7064,8 +7064,6 @@
     "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Bố cục dùng cho tuyến gốc của site. Nội dung trang chủ tùy chỉnh được ưu tiên hơn cả hai bố cục.",
     "Conflicting rules": "Quy tắc xung đột",
     "Resolve the conflicting rules before saving": "Hãy giải quyết các quy tắc xung đột trước khi lưu",
-    "{{first}} conflicts with {{second}}": "{{first}} xung đột với {{second}}",
-    "Only load scripts you trust": "Chỉ tải các tập lệnh bạn tin cậy",
-    "The script runs with full access to every page of this site, including the login and admin pages, and can read or modify anything a signed-in visitor can see. Only embed a vendor you trust, and prefer an official domain over a third-party mirror.": "Tập lệnh chạy với toàn quyền truy cập trên mọi trang của site, bao gồm trang đăng nhập và bảng quản trị, đồng thời có thể đọc hoặc sửa đổi mọi thứ mà khách đã đăng nhập có thể thấy. Chỉ nhúng nhà cung cấp bạn tin cậy và ưu tiên tên miền chính thức hơn bản sao của bên thứ ba."
+    "{{first}} conflicts with {{second}}": "{{first}} xung đột với {{second}}"
   }
 }

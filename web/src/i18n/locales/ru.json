@@ -7064,8 +7064,6 @@
     "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Макет, используемый корневым маршрутом сайта. Пользовательское содержимое главной страницы имеет приоритет над обоими макетами.",
     "Conflicting rules": "Конфликтующие правила",
     "Resolve the conflicting rules before saving": "Устраните конфликтующие правила перед сохранением",
-    "{{first}} conflicts with {{second}}": "{{first}} конфликтует с {{second}}",
-    "Only load scripts you trust": "Загружайте только доверенные скрипты",
-    "The script runs with full access to every page of this site, including the login and admin pages, and can read or modify anything a signed-in visitor can see. Only embed a vendor you trust, and prefer an official domain over a third-party mirror.": "Скрипт выполняется с полным доступом ко всем страницам сайта, включая страницу входа и панель администратора, и может читать или изменять всё, что доступно авторизованному посетителю. Встраивайте только скрипты доверенного поставщика и предпочитайте официальный домен стороннему зеркалу."
+    "{{first}} conflicts with {{second}}": "{{first}} конфликтует с {{second}}"
   }
 }

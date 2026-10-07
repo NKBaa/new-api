@@ -7064,8 +7064,6 @@
     "Layout of the site root route. Custom home page content takes precedence over both layouts.": "站點根路由使用的版面。自訂首頁內容優先於這兩種版面。",
     "Conflicting rules": "衝突規則",
     "Resolve the conflicting rules before saving": "請先解決衝突的規則後再儲存",
-    "{{first}} conflicts with {{second}}": "{{first}} 與 {{second}} 衝突",
-    "Only load scripts you trust": "只載入你信任的腳本",
-    "The script runs with full access to every page of this site, including the login and admin pages, and can read or modify anything a signed-in visitor can see. Only embed a vendor you trust, and prefer an official domain over a third-party mirror.": "此腳本會以完整權限執行於本站所有頁面，包括登入頁與管理後台，並能讀取或修改任何已登入訪客可見的內容。請只嵌入你信任的廠商腳本，並優先使用官方網域而非第三方鏡像。"
+    "{{first}} conflicts with {{second}}": "{{first}} 與 {{second}} 衝突"
   }
 }

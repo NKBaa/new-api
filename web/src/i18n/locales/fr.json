@@ -7064,8 +7064,6 @@
     "Layout of the site root route. Custom home page content takes precedence over both layouts.": "Mise en page utilisée par la route racine du site. Le contenu personnalisé de la page d'accueil est prioritaire sur ces deux mises en page.",
     "Conflicting rules": "Règles en conflit",
     "Resolve the conflicting rules before saving": "Résolvez les règles en conflit avant d’enregistrer",
-    "{{first}} conflicts with {{second}}": "{{first}} entre en conflit avec {{second}}",
-    "Only load scripts you trust": "Ne chargez que des scripts de confiance",
-    "The script runs with full access to every page of this site, including the login and admin pages, and can read or modify anything a signed-in visitor can see. Only embed a vendor you trust, and prefer an official domain over a third-party mirror.": "Le script s'exécute avec un accès complet à toutes les pages du site, y compris la page de connexion et la console d'administration, et peut lire ou modifier tout ce qu'un visiteur connecté peut voir. N'intégrez qu'un fournisseur de confiance et privilégiez un domaine officiel à un miroir tiers."
+    "{{first}} conflicts with {{second}}": "{{first}} entre en conflit avec {{second}}"
   }
 }
