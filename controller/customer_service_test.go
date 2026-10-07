@@ -74,6 +74,31 @@ func TestCustomerServiceValidation(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestCustomerServiceScriptValidation(t *testing.T) {
+	// 纯 URL 与完整 <script src> 标签都应被接受
+	assert.NoError(t, console_setting.ValidateConsoleSettings(
+		"https://maxkb.example.com/chat/api/embed?token=abc", "CustomerServiceScript"))
+	assert.NoError(t, console_setting.ValidateConsoleSettings(
+		`<script async defer src="https://maxkb.example.com/chat/api/embed?token=abc"></script>`,
+		"CustomerServiceScript"))
+	assert.NoError(t, console_setting.ValidateConsoleSettings("", "CustomerServiceScript"))
+
+	// 内联脚本、事件属性、非 http(s) 协议与非法 URL 都必须被拒绝
+	assert.Error(t, console_setting.ValidateConsoleSettings(
+		`<script>alert(1)</script>`, "CustomerServiceScript"))
+	assert.Error(t, console_setting.ValidateConsoleSettings(
+		`<script src="https://example.com/a.js" onload="alert(1)"></script>`,
+		"CustomerServiceScript"))
+	assert.Error(t, console_setting.ValidateConsoleSettings(
+		`<script src="javascript:alert(1)"></script>`, "CustomerServiceScript"))
+	assert.Error(t, console_setting.ValidateConsoleSettings(
+		`<script src="ftp://example.com/a.js"></script>`, "CustomerServiceScript"))
+	assert.Error(t, console_setting.ValidateConsoleSettings(
+		`<script src="https://example.com/a.js">`, "CustomerServiceScript"))
+	assert.Error(t, console_setting.ValidateConsoleSettings(
+		"javascript:alert(1)", "CustomerServiceScript"))
+}
+
 func TestOptionLogoValidation(t *testing.T) {
 	db, _ := newAuditTestDatabase(t, "sqlite", "")
 	previousDB := model.DB
@@ -167,4 +192,30 @@ func TestGetStatusCustomerService(t *testing.T) {
 	item := csList[0].(map[string]any)
 	assert.Equal(t, "在线客服", item["title"])
 	assert.Equal(t, "https://example.com/qr.png", item["qrcode"])
+
+	// 3. 第三方客服脚本：开关关闭时不输出，开启且非空时输出
+	cs.CustomerServiceScriptEnabled = false
+	cs.CustomerServiceScript = ""
+	req3 := httptest.NewRequest(http.MethodGet, "/status", nil)
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, req3)
+	var resp3 map[string]any
+	require.NoError(t, json.Unmarshal(w3.Body.Bytes(), &resp3))
+	data3 := resp3["data"].(map[string]any)
+	assert.False(t, data3["customer_service_script_enabled"].(bool))
+	assert.Nil(t, data3["customer_service_script"])
+
+	script := `<script async defer src="https://maxkb.example.com/chat/api/embed?token=abc"></script>`
+	require.NoError(t, config.UpdateConfigFromMap(cfg, map[string]string{
+		"customer_service_script_enabled": "true",
+		"customer_service_script":         script,
+	}))
+	req4 := httptest.NewRequest(http.MethodGet, "/status", nil)
+	w4 := httptest.NewRecorder()
+	r.ServeHTTP(w4, req4)
+	var resp4 map[string]any
+	require.NoError(t, json.Unmarshal(w4.Body.Bytes(), &resp4))
+	data4 := resp4["data"].(map[string]any)
+	assert.True(t, data4["customer_service_script_enabled"].(bool))
+	assert.Equal(t, script, data4["customer_service_script"])
 }

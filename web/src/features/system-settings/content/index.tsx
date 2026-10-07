@@ -34,6 +34,8 @@ const defaultContentSettings: ContentSettings = {
   'console_setting.faq_enabled': true,
   'console_setting.customer_service': '[]',
   'console_setting.customer_service_enabled': false,
+  'console_setting.customer_service_script': '',
+  'console_setting.customer_service_script_enabled': false,
   'console_setting.uptime_kuma_enabled': false,
   DataExportEnabled: false,
   DataExportDefaultTime: 'hour',

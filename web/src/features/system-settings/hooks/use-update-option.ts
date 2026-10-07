@@ -50,6 +50,8 @@ const STATUS_RELATED_KEYS = new Set([
   'AffiliateDescription',
   'console_setting.customer_service',
   'console_setting.customer_service_enabled',
+  'console_setting.customer_service_script',
+  'console_setting.customer_service_script_enabled',
 ])
 
 export function useUpdateOption() {

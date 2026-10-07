@@ -217,6 +217,8 @@ export type ContentSettings = {
   'console_setting.faq_enabled': boolean
   'console_setting.customer_service': string
   'console_setting.customer_service_enabled': boolean
+  'console_setting.customer_service_script': string
+  'console_setting.customer_service_script_enabled': boolean
   'console_setting.uptime_kuma_enabled': boolean
   DataExportEnabled: boolean
   DataExportDefaultTime: string

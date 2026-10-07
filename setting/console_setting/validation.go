@@ -23,6 +23,12 @@ var (
 		"violet": true, "grey": true, "slate": true,
 	}
 	slugRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	// 第三方客服脚本：完整 <script ...>...</script> 标签的拆解
+	scriptTagRegex = regexp.MustCompile(`(?is)^<script\b([^>]*)>(.*?)</script>$`)
+	// 从 <script> 属性中提取 src（支持双引号、单引号与无引号写法）
+	scriptSrcRegex = regexp.MustCompile(`(?i)\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))`)
+	// 事件处理属性，例如 onload= / onerror=
+	eventHandlerAttrRegex = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
 )
 
 func parseJSONArray(jsonStr string, typeName string) ([]map[string]interface{}, error) {
@@ -129,6 +135,8 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 		return validateUptimeKumaGroups(settingsStr)
 	case "CustomerService":
 		return validateCustomerService(settingsStr)
+	case "CustomerServiceScript":
+		return validateCustomerServiceScript(settingsStr)
 	default:
 		return fmt.Errorf("未知的设置类型：%s", settingType)
 	}
@@ -428,4 +436,54 @@ func validateCustomerService(customerServiceStr string) error {
 
 func GetCustomerService() []map[string]interface{} {
 	return getJSONList(GetConsoleSetting().CustomerService)
+}
+
+// maxCustomerServiceScriptChars 限制第三方客服脚本配置的长度，避免把大段内容塞进选项表。
+const maxCustomerServiceScriptChars = 2000
+
+// validateCustomerServiceScript 校验第三方客服脚本配置。
+//
+// 只接受两种输入：一个外部脚本 URL，或一个仅通过 src 引入外部脚本的 <script> 标签。
+// 内联脚本与事件处理属性一律拒绝：管理员配置的是“引入哪个第三方挂件”，
+// 不是“执行任意前端代码”的入口。
+func validateCustomerServiceScript(scriptStr string) error {
+	trimmed := strings.TrimSpace(scriptStr)
+	if trimmed == "" {
+		return nil
+	}
+	if exceedsMaxCharacters(trimmed, maxCustomerServiceScriptChars) {
+		return fmt.Errorf("第三方客服脚本长度不能超过%d字符", maxCustomerServiceScriptChars)
+	}
+
+	if !strings.HasPrefix(strings.ToLower(trimmed), "<script") {
+		if err := validateURL(trimmed, 1, "第三方客服脚本"); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	matches := scriptTagRegex.FindStringSubmatch(trimmed)
+	if matches == nil {
+		return fmt.Errorf("第三方客服脚本必须是完整的 <script src=\"...\"></script> 标签或一个脚本 URL")
+	}
+	attrs, inlineBody := matches[1], matches[2]
+	if strings.TrimSpace(inlineBody) != "" {
+		return fmt.Errorf("第三方客服脚本不支持内联脚本，请只通过 src 引入外部脚本")
+	}
+	if eventHandlerAttrRegex.MatchString(attrs) {
+		return fmt.Errorf("第三方客服脚本的标签属性中不允许使用事件处理属性")
+	}
+
+	srcMatches := scriptSrcRegex.FindStringSubmatch(attrs)
+	if srcMatches == nil {
+		return fmt.Errorf("第三方客服脚本的 <script> 标签缺少 src 属性")
+	}
+	src := ""
+	for _, candidate := range srcMatches[1:] {
+		if candidate != "" {
+			src = candidate
+			break
+		}
+	}
+	return validateURL(src, 1, "第三方客服脚本")
 }

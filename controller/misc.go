@@ -102,11 +102,12 @@ func GetStatus(c *gin.Context) {
 		"stripe_unit_price": setting.StripeUnitPrice,
 
 		// 面板启用开关
-		"api_info_enabled":         cs.ApiInfoEnabled,
-		"uptime_kuma_enabled":      cs.UptimeKumaEnabled,
-		"announcements_enabled":    cs.AnnouncementsEnabled,
-		"faq_enabled":              cs.FAQEnabled,
-		"customer_service_enabled": cs.CustomerServiceEnabled,
+		"api_info_enabled":                cs.ApiInfoEnabled,
+		"uptime_kuma_enabled":             cs.UptimeKumaEnabled,
+		"announcements_enabled":           cs.AnnouncementsEnabled,
+		"faq_enabled":                     cs.FAQEnabled,
+		"customer_service_enabled":        cs.CustomerServiceEnabled,
+		"customer_service_script_enabled": cs.CustomerServiceScriptEnabled,
 
 		// 模块管理配置
 		"HeaderNavModules":       common.OptionMap["HeaderNavModules"],
@@ -144,6 +145,9 @@ func GetStatus(c *gin.Context) {
 	}
 	if cs.CustomerServiceEnabled {
 		data["customer_service"] = console_setting.GetCustomerService()
+	}
+	if cs.CustomerServiceScriptEnabled && cs.CustomerServiceScript != "" {
+		data["customer_service_script"] = cs.CustomerServiceScript
 	}
 
 	// Add enabled custom OAuth providers
