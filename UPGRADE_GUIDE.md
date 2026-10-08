@@ -73,13 +73,13 @@ d04c118c8 (官方基线)
 **因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动**（合并后还会包含官方 20 个提交，共 319 文件）。若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成，**父提交用当前官方基线 `56758edf9`**：
 
 ```bash
-# 合成一个父为 56758edf9、树与 HEAD 相同的虚拟提交
+# 合成一个父为 6370b2942、树与 HEAD 相同的虚拟提交
 tree=$(git rev-parse 'HEAD^{tree}')
-synth=$(git commit-tree "$tree" -p 56758edf9 -m "port 11 businesses")
+synth=$(git commit-tree "$tree" -p 6370b2942 -m "port 11 businesses")
 git format-patch --binary --stdout -1 "$synth" > businesses.patch
 ```
 
-仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `56758edf9`，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（`dd6c0b9c1…`），151 个改动文件。
+仓库随附的 `new-api-official-11-businesses.patch` 即以此方式生成，已验证可干净 `git apply` 到纯净 `6370b2942`（`v1.0.0-rc.42`），`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**，**163 个改动文件**（53 新增 + 110 修改 + 0 删除）。
 
 ---
 
@@ -655,7 +655,7 @@ go test ./controller/ ./model/ -count=1 -timeout 60m -v \
 | 交付物 | 路径 |
 |---|---|
 | 完整源码仓库 | `new-api-official-11biz/` |
-| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（约 890 KB，含 151 个改动文件）。注意：它由 `HEAD^{tree}` 与 `d04c118c8` 的差集生成，**连本手册与 `README_CN.md` 本身也在补丁里**，所以任何一次改动（含改文档）都会让它变；**以文件实际大小为准，不要引用固定字节数**。重新生成的命令见 §0 的 `git commit-tree` 代码块 |
+| 移植补丁（单提交，可直接 `git apply` **或** `git am`） | `new-api-official-11-businesses.patch`（含 **163 个改动文件**，基于官方 `6370b2942`）。注意：它由 `HEAD^{tree}` 与官方基线的差集生成，**连本手册与 `README_CN.md` 本身也在补丁里**，所以任何一次改动（含改文档）都会让它变；**以文件实际大小为准，不要引用固定字节数**。重新生成的命令见 §0 的 `git commit-tree` 代码块 |
 | 技术手册（唯一权威，AI 用） | `UPGRADE_GUIDE.md`（本文件） |
 | 白话说明（非技术人员） | `README_CN.md` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
