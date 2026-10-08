@@ -10,13 +10,13 @@
 
 | 项 | 值 |
 |---|---|
-| 官方基线 | `56758edf9`（同步时的 `upstream/main`）。**上一个基线是 `d04c118c8`**，二者之间官方有 20 个提交；本次已把这 20 个提交合并进来（见 §0.2） |
-| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`8c177d193`（前端高亮与拦截错误映射规则冲突）、`d262745c6`（未匹配错误在网页日志和 API 中保留原文）、`a68059e00`（增加错误规则重叠校验）、`fb89540c6`（修复聊天侧栏重复的裸 `ccswitch` marker）、`e9db0a982`（恢复官方 API 密钥页流程）、`6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的 B13 选 Key 提交为 `4234fb98e` 与 `7420d157b` |
+| 官方基线 | `6370b2942`（`upstream/main`，标签 `v1.0.0-rc.42`）。**上一个基线是 `56758edf9`**，二者之间官方有 20 个提交；本次已把这 20 个提交合并进来（见 §0.3）。更早的基线 `d04c118c8` 见 §0.2 |
+| 当前交付提交 | 以 `git log -1` 为准（**本表刻意不写死哈希** —— 每次改文档都会产生新提交，写死必然立刻过期）。代码侧里程碑提交：`855d5fcb7`（合并官方 `v1.0.0-rc.42`）、`8c177d193`（前端高亮与拦截错误映射规则冲突）、`d262745c6`（未匹配错误在网页日志和 API 中保留原文）、`a68059e00`（增加错误规则重叠校验）、`6fab4aa6c`（合并官方 20 个提交到 `56758edf9`）；此前的 B13 选 Key 提交为 `4234fb98e` 与 `7420d157b` |
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
-| 相对基线改动 | **163 文件** = 53 新增 + 110 修改 + **0 删除** |
+| 相对官方基线改动 | **163 文件** = 53 新增 + 110 修改 + **0 删除**（即「我们比官方 `6370b2942` 多的东西」） |
 | 其中非业务文件 | 4 个（GitHub 侧既有，非本次业务改动）：`.github/workflows/docker-image.yml`(A)、`UPGRADE_GUIDE.md`(A)、`README_CN.md`(A)、`VERSION`(M) |
 | 纯业务改动 | **159 文件** = 50 新增 + 109 修改 |
-| 模块划分 | 2 个 Go module：根模块 + `relaykit/`（独立，`GOWORK=off` 必须可构建） |
+| 模块划分 | 3 个 Go module：根模块 + `relaykit/` + `tokenkit/`（后两者独立，`GOWORK=off` 必须可构建；`tokenkit/` 不得依赖 `relaykit/`） |
 | 数据库 | SQLite / MySQL ≥5.7.8 / PostgreSQL ≥9.6 **三方言必须同时支持** |
 
 ### 0.1 提交拓扑（重要，影响移植方式）
@@ -42,6 +42,8 @@ d04c118c8 (官方基线)
                                                                                                             └── …(文档)…
                                                                                                                     └── f5b742afe   (VERSION → v1.0.0-rc.41)
                                                                                                                             └── …(此后均为纯文档提交)…
+                                                                                                                                    └── 855d5fcb7   (merge: 同步官方 v1.0.0-rc.42 / 20 个提交)
+                                                                                                                                            └── …(文档)…
 ```
 
 ### 0.2 与官方同步（`6fab4aa6c` merge）
@@ -55,6 +57,18 @@ d04c118c8 (官方基线)
 - **未验证**：MySQL 与 PostgreSQL 未在本机实测（见 §6.1 的说明）。本次改动未引入任何方言特有 SQL；但 `AutoMigrate` 列表是双方向同一处追加，升级到真实 MySQL/PG 时**建议先跑一遍 §6.3 的数据库矩阵命令**再上生产。
 
 > 中间提交的完整清单、每个提交做了什么，见 §8（历史记录）。
+
+### 0.3 与官方同步（`855d5fcb7` merge，官方 `v1.0.0-rc.42`）
+
+交付仓库现在是**官方 `6370b2942`（标签 `v1.0.0-rc.42`）的直接后代**：上游在 `56758edf9` 之后又推了 **20 个提交 / 148 个文件**，本次全部并入（`merge` 提交有两个父：`1d76e637c` 与 `6370b2942`）。
+
+- **零冲突**。我们的 163 文件差集与官方 148 文件里**只有 14 个文件重叠**，git 全部自动合并：`common/constants.go`、`relay/channel/gemini/relay-gemini.go`、`relay/channel/openai/relay-openai.go`、`relay/common/relay_info.go`、`relay/response_model_test.go`、`relaykit/dto/channel_settings.go`、`web/src/features/channels/types.ts`，以及 7 个前端 locale JSON（合并后 **7067 键 × 7 语言、0 缺失 / 0 多余 / 0 重复**）。
+- **官方本次带来的新东西**：新增独立 Go module **`tokenkit/`**（文本与图片 token 计数，根模块用 `replace` 指向本地目录；`service/tokenizer.go`、`service/token_estimator.go` 被它取代并删除）、多厂商 **Web Search** 计费与编码（`relay/channel/{ali,openai,xai,zhipu_4v}/web_search.go`）、**Google Search grounding** 按查询/按 grounded prompt 计费、高级参数覆盖支持正则条件、`moejs` 升到 `v0.1.0-alpha.6` 并用其 PGO profile 构建、xAI Grok Imagine 视频插件、前端渠道参数覆盖编辑器与用户分组筛选、`middleware/frontend_static.go`（前端静态资源 gzip 缓存）、若干 relayconvert 有损转换与流式计费修复。
+- **官方本次删除的文件**：`relaykit/relayconvert/internal/oai_responses/to_gemini_chat_req_preprocess.go`、`service/tokenizer.go`、`service/token_estimator.go`。我们从未触碰它们，删除后**无残留引用**。
+- **合并后验证（实测）**：根模块 `go build ./...` exit 0；`go vet ./service/ ./relay/...` exit 0；`relaykit` 与 `tokenkit` **各自 `GOWORK=off` 独立构建 exit 0**、`go vet` exit 0，且两者都不 import 根模块、`tokenkit` 不 import `relaykit`（模块独立性合规）；`tokenkit` 自带测试 ok；`go test ./relay/... ./relaykit/...`（`relaykit` 用 `GOWORK=off`）全 ok；自定义业务（返佣 / 签到 / 错误映射 / 伪 200）测试 ok；前端 `typecheck` exit 0、`oxlint` 无新增、生产构建 exit 0、`vitest` **185 文件 / 2209 通过 + 26 跳过**。
+- **lint / 格式基线（如实说明）**：`oxlint` 合并前后均为 **65 warning + 165 error**、`oxfmt --check` 均为 **57 文件**，**逐条比对位置完全一致（0 新增、0 修复）**；官方基线自身也是 165 error / 24 文件。`e2e/doc_parse_test.go` 的 `gofmt` 告警在官方 `6370b2942` 上同样存在，本次未触碰。这些是**上游既有基线**，不是本次合并引入的。
+- **已知非合并问题（预存在，已用 `1d76e637c` 对照确认）**：`service` 的 `TestSanitizeRelayErrorFieldsAndUnknown400`、`controller` 的 107 个 `TestSecurityEnrollment*` / Passkey / OAuth 用例失败，**合并前后失败集合逐条完全一致（0 新增）**，根因是 Windows 上 SQLite 临时库在 `TempDir` 清理时被占用（`unlinkat ... being used by another process`）；`relay/channel` 的 `TestUpstreamGetBody_*` 仅在 `-count>=3` 重复运行时失败（测试隔离问题，`-count=1` 通过），合并前同样如此。
+- **未验证**：MySQL 与 PostgreSQL 未在本机实测（见 §6.1）。本次改动未引入方言特有 SQL，但官方改动了计费与用量派生路径，上生产前**建议先跑 §6.3 的数据库矩阵命令**。
 
 **因此 `git diff d04c118c8..HEAD` 会包含 `f9cabe103` 等中间提交的改动**（合并后还会包含官方 20 个提交，共 319 文件）。若需"仅业务改动"的单提交补丁，必须用 `git commit-tree` 合成，**父提交用当前官方基线 `56758edf9`**：
 
@@ -443,13 +457,13 @@ web/src/stores/chat-key-preference-store.ts
 
 ```bash
 git clone <官方仓库> new-api && cd new-api
-git checkout 56758edf9                 # 官方基线（同步时的 upstream/main）
+git checkout 6370b2942                 # 官方基线（= v1.0.0-rc.42，同步时的 upstream/main）
 git apply /path/new-api-official-11-businesses.patch
 git add -A && git commit -m "port 11 businesses"
 ```
 
-**已验证**：该补丁可干净应用，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（`eacf997c6…`，163 文件改动，含新增的 `relay/channel/opencode/` 包、`web/src/features/chat/components/` 与报错映射冲突处理模块）。
-> 验证方式（可复现）：`git worktree add --detach 56758edf9` → `git apply --check`（exit 0）→ `git apply` → `git add -A && git write-tree`，树哈希与交付仓库 `HEAD^{tree}` 相同，`git status --porcelain` 恰好 151 条。
+**已验证**：该补丁可干净应用，`git write-tree` 得到的树哈希与交付仓库 `HEAD^{tree}` **完全相同**（163 文件改动，含新增的 `relay/channel/opencode/` 包、`web/src/features/chat/components/` 与报错映射冲突处理模块）。
+> 验证方式（可复现）：`git worktree add --detach 6370b2942` → `git apply --check`（exit 0）→ `git apply` → `git add -A && git write-tree`，树哈希与交付仓库 `HEAD^{tree}` 相同。
 > `git apply` 可能提示几行 trailing whitespace —— 那是 markdown 文档里的**有意**换行空格，非错误。
 
 ### 4.2 方式 B：变基到更新的官方版本
@@ -500,14 +514,14 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 ## 5. 部署要点
 
 - **端口/环境**：沿用官方；本仓库未新增必需环境变量。
-- **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（**当前 `v1.0.0-rc.41`**）。`.github/workflows/docker-image.yml` 的 `paths` **包含 `VERSION`**，所以改它就会触发一次镜像构建。**不要清空**。版本号与代码的关系：`v1.0.0-rc.41` 对应官方提交 `2035a82ae`，而我们已含 `2035a82ae` **及其后 6 个官方提交**，因此 `rc.41` 是"不低于"实际代码的准确说法；后续再同步官方时**记得同步抬高这个号**。
+- **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（**当前 `v1.0.0-rc.42`**）。`.github/workflows/docker-image.yml` 的 `paths` **包含 `VERSION`**，所以改它就会触发一次镜像构建。**不要清空**。版本号与代码的关系：`v1.0.0-rc.42` 对应官方提交 `6370b2942`，而我们已含该提交及其之前全部官方提交，因此 `rc.42` 是"不低于"实际代码的准确说法；后续再同步官方时**记得同步抬高这个号**。
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64）。
-  - **✅ 当前 `latest` 就是最新交付代码**：对应提交 `8c177d193`（前端高亮与拦截错误映射规则冲突；含此前全部 14 项功能与官方合并），构建 run `36974257733`（run number 90），**success**，整任务 17 分 53 秒。摘要 `sha256:23209e1d0ac9053cacf64aca036fc5c96e1c43e03ad4e186c6086f9d16bf9416`，与标签 `sha-8c177d19353d13b50f9de0ae0bbd73808a8e26ff` **完全一致**。**14 项业务 + 错误映射规则冲突前端拦截与高亮 + 未匹配错误原文保留 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订 + 官方 20 个提交，全都在里面。**
-  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；后台「系统设置 → 请求策略」新增两条相同或重叠关键词规则 → 立即高亮红色 Badge 并拦截保存；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.41`** → 版本号已抬高。
-  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `23209e1d…`）。
+  - **⚠️ 合并 `v1.0.0-rc.42` 后镜像尚未重建**：`855d5fcb7` 及后续文档提交尚未推送到 `main`，因此当前 `latest` 仍是**合并前**的旧镜像（对应提交 `8c177d193`，构建 run `36974257733` / run number 90，**success**，17 分 53 秒，摘要 `sha256:23209e1d0ac9053cacf64aca036fc5c96e1c43e03ad4e186c6086f9d16bf9416`）。**推送代码后**会由 `docker-image.yml` 自动重建（`VERSION` 已抬高到 `v1.0.0-rc.42`，改它会触发构建）；**重建成功前不要按"含 rc.42"对外宣称镜像内容**。
+  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；后台「系统设置 → 请求策略」新增两条相同或重叠关键词规则 → 立即高亮红色 Badge 并拦截保存；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.41`**（重建前）/**`v1.0.0-rc.42`**（重建后）→ 版本号已抬高。
+  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（重建前应输出上面的 `23209e1d…`；重建后以新构建日志里的 digest 为准）。
   - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
     - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
     - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
@@ -647,7 +661,7 @@ go test ./controller/ ./model/ -count=1 -timeout 60m -v \
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 
 - 仓库内旧文档 `PORTING_GUIDE.md`（称「10 大业务、99 文件」，未涵盖业务十一）**已删除**，唯一权威替代品就是本手册。
-- **已推送 GitHub**：全程 **fast-forward**（非强推）、**0 删除**；并**保留** GitHub 侧既有文件 `.github/workflows/docker-image.yml`（push 到 `main` 自动构建镜像）、`UPGRADE_GUIDE.md`、`VERSION`（现为 `v1.0.0-rc.41`）。`main` 与本地 `HEAD` 一致（用 `git log --oneline github/main..HEAD` 应为空来自查）。
+- **已推送 GitHub**：全程 **fast-forward**（非强推）、**0 删除**；并**保留** GitHub 侧既有文件 `.github/workflows/docker-image.yml`（push 到 `main` 自动构建镜像）、`UPGRADE_GUIDE.md`、`VERSION`（现为 `v1.0.0-rc.42`）。`main` 与本地 `HEAD` 一致（用 `git log --oneline github/main..HEAD` 应为空来自查）。
 - 本地旧版本（`new-api-clean/`、`node_modules/` 残留、3 个旧 `.patch`）已按要求清理，清理前全部内容已归档（见下表，零额外磁盘占用）。
 - **历史事故备忘**：原 `PORTING_NOTES.md` 一度被 `Get-Content -Raw` 以 GBK 误读 UTF-8 再写回，全角标点不可逆丢失；当时用 GBK 逆向解码恢复了全部结构、代码、命令与事实。该文件现已并入本手册，**同样的事故不会再影响独立副本（因为副本已不存在）**，但**教训仍然有效：不要用 PowerShell 直接读写本仓库的 UTF-8 中文文档**，改用 `write`/`edit` 工具或 `bun` 脚本。
 
