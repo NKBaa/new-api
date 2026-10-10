@@ -514,14 +514,15 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 ## 5. 部署要点
 
 - **端口/环境**：沿用官方；本仓库未新增必需环境变量。
-- **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（**当前 `v1.0.0-rc.43`**）。`.github/workflows/docker-image.yml` 的 `paths` **包含 `VERSION`**，所以改它就会触发一次镜像构建。**不要清空**。版本号与代码的关系：`v1.0.0-rc.42` 对应官方提交 `6370b2942`，而我们已含该提交及其之前全部官方提交，因此 `rc.42` 是"不低于"实际代码的准确说法；后续再同步官方时**记得同步抬高这个号**。
+- **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（**当前 `v1.0.0-rc.43`**）。`.github/workflows/docker-image.yml` 的 `paths` **包含 `VERSION`**，所以改它就会触发一次镜像构建。**不要清空**。版本号与代码的关系：`v1.0.0-rc.43` 对应官方提交 `c6741c36a`，而我们已含该提交及其之前全部官方提交，因此 `rc.43` 是"不低于"实际代码的准确说法；后续再同步官方时**记得同步抬高这个号**。
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
   - **PostgreSQL 已实测**：prod-server-u22 使用 PostgreSQL 14 完成首次及二次启动迁移，`/api/setup` 正常返回。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64）。
-  - 当前发布提交为 `cc956ca69`，GitHub Actions 运行 `38067264440` 正在构建；完成后将回填最终 conclusion、运行时长和多架构镜像摘要。**14 项业务 + 官方 `v1.0.0-rc.42` 全部 20 个提交（含 `tokenkit` 模块、多厂商 Web Search 计费、Google Search grounding 计费）+ 错误映射冲突高亮与保存拦截 + 未匹配错误原文保留 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订，全都在里面。**
-  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；后台「系统设置 → 请求策略」新增两条相同或重叠关键词规则 → 立即高亮红色 Badge 并拦截保存；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.42`** → 版本号已抬高。
-  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`；应核对提交 `cc956ca69` 对应的多架构摘要。
+  - **✅ 当前 `latest` 已包含 `v1.0.0-rc.43`**：对应提交 `3586c148c`（功能提交 `cc956ca69`），构建 run `38068542204`，**success**，25 分 49 秒，多架构索引摘要 `sha256:5e8697cd64fd9d84f20a396ea8f419347a0964c4d56805c8ab5195b9be283070`（`linux/amd64` = `sha256:da79a779d7…`，`linux/arm64` = `sha256:239ebf190e…`）。**14 项业务 + 官方 `v1.0.0-rc.43` + 错误映射手动多语言（规则级简中/繁中/英文文案 + 可配置 API 默认报错语言 + 未匹配原文返回）+ 错误映射冲突高亮与保存拦截 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订，全都在里面。**
+  - **镜像实测（2026-10-11，prod-server-u22）**：`docker pull` 成功且匿名可拉；`docker run --rm … --version` 输出 `v1.0.0-rc.43`；启动日志 `New API v1.0.0-rc.43 ready in 556 ms`；`/api/status` 返回 200 且 `version = v1.0.0-rc.43`；二进制内含 `APIErrorDefaultLanguage`，`rc.42` 字样为 0；初始化实例后 `/api/option/` 返回 `APIErrorDefaultLanguage = 'zh-CN'`，设为 `en` 成功、非法值 `fr` 被拒绝（`unsupported API error default language`）。
+  - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；后台「系统设置 → 请求策略」新增两条相同或重叠关键词规则 → 立即高亮红色 Badge 并拦截保存；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.43`** → 版本号已抬高；后台「系统设置 → 请求策略」展开错误映射分区，可为每条规则分别填写**简体中文/繁体中文/英文**文案，并可设置「API default error language」→ 本轮手动多语言已就绪（未匹配错误仍返回上游原文）。
+  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `5e8697cd…`）。
   - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
     - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
     - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
@@ -533,20 +534,23 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 
 ## 6. 测试与已知问题
 
-### 6.0 当前上线复核（2026-10-10）
+### 6.0 当前上线复核（2026-10-11）
 
 | 项目 | 结果 |
 |---|---|
 | 官方基线 | `c6741c36a` / `v1.0.0-rc.43` |
-| 当前本地 HEAD | `06b57467e`（文档与未提交修复以工作区为准；本轮多语言配置改动尚未提交） |
+| 当前已推送 HEAD | `3586c148c`（功能提交 `cc956ca69`，已推送 `origin/main`） |
 | Linux 根模块 `go test ./...` | PASS |
 | 根模块 Linux amd64 构建 | PASS |
 | `relaykit` / `tokenkit` 独立测试与构建（`GOWORK=off`） | PASS / PASS |
 | 前端 `bun run typecheck`（prod-server-u22，Go 1.26 / Node 24 工具链） | PASS |
 | 前端 `bun run build`（prod-server-u22，Bun 1.4.3） | PASS |
 | 前端 Node 24 / Bun 1.4.3 Vitest（prod-server-u22） | 186 文件通过，2221 用例通过，26 跳过；1 个 oxlint 自测因 Rust allocator 崩溃 |
-| SQLite / PostgreSQL 14 / MySQL 8.0.46 | 均完成首次及二次启动迁移，`/api/setup` 正常 |
-| prod-server-u22 进程清理 | PASS，无残留监听端口 |
+| 错误映射多语言前端回归 | `request-policies/__tests__/` 2 文件 26 用例 PASS |
+| SQLite / PostgreSQL 14 / MySQL 8.0.46 | 均完成首次及二次启动迁移，schema 指纹字节一致，`/api/setup` 与登录正常（PG 14.24 / MySQL 8.0.46 / SQLite 40 表） |
+| Docker 镜像 `ghcr.io/nkbaa/new-api:latest` | run `38068542204` success（25m49s），`sha256:5e8697cd64fd9d84f20a396ea8f419347a0964c4d56805c8ab5195b9be283070` |
+| 镜像端到端实测（prod-server-u22） | `--version` = `v1.0.0-rc.43`，启动就绪，`/api/option/` 含 `APIErrorDefaultLanguage`，非法值被拒 |
+| prod-server-u22 进程与临时文件清理 | PASS，无残留容器、监听端口和临时目录 |
 
 > 约束：未匹配的上游错误保留原文；错误映射不再使用内置翻译。管理员在网页中分别填写简体中文、繁体中文和英文文案，API 默认报错语言也在网页中单独设置；匹配时按请求语言选择已配置文案，未配置该语言时回退到规则默认文案；管理员配置的文案不自动翻译。
 
@@ -566,12 +570,12 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 | 前端 `typecheck` | exit 0（含业务十三与官方同步后重跑） |
 | 前端 `src/features/channels` | **23 文件 / 303 用例**全过 |
 | 前端 `src/features/chat` | **2 文件 / 10 用例**全过（业务十三 8 例 + B13-r1 新增 2 例） |
-| 前端全量 `vitest` | **183 文件 / 2225 用例**全过（合并官方 20 提交后为 181/2209；B13-r1 前为 174/2157） |
+| 前端全量 `vitest` | **186 文件 / 2221 用例通过、26 跳过**（`prod-server-u22`，Bun 1.4.3 / Node 24；另有 1 个 oxlint 自测因 Rust allocator 崩溃） |
 | 改动前端文件 lint | 业务十三新增/改动的 9 个文件（不含路由）：**0 warning / 0 error**；第 10 个 `$chatId.tsx` 有 **1 error**（`react/iframe-missing-sandbox`），位于**官方原有行且基线即存在**（见 §6.2-6）。`bun run lint` 全仓基线仍为 66 warn / 182 err |
 | 改动前端文件 `oxfmt --check` | 全部通过（`bun run format:check` 全仓仍有 53 个**改动前既有**的不合格式文件，与本次改动文件交集为 0） |
-| 前端 i18n | 7 语言 × **7065** 键，0 缺失/多余/重复（冲突提示 +3 键；合并官方 +102 键后；合并前为 6976） |
+| 前端 i18n | 7 语言 × **7462** 键，0 缺失/多余（`bun run i18n:sync` 报告 missingCount=0、extrasCount=0）；本轮新增的 6 个错误映射键已进入全部 7 种语言 |
 | 报错规则冲突 UI（实测） | `oxlint` 改动 4 文件 **0 warn / 0 err**；`typecheck` exit 0；`vitest run src/features/system-settings/request-policies/__tests__/` **4 文件 / 58 用例全过**（新增 `error-rule-conflicts.test.ts` 6 例覆盖子串重叠/兜底规则/状态码不重叠/禁用规则/全角与换行分隔符/ID 去重，`settings.test.tsx` 新增 2 例覆盖冲突高亮+保存拦截与无冲突正常保存） |
-| 后端 i18n | 3 语言 × 265 键 |
+| 后端 i18n | 3 语言 × 229 键（`en` / `zh-CN` / `zh-TW`，键集合一致；`go test ./i18n/` ok） |
 | **MySQL：官方数据库矩阵测试** | **202/202 子用例 PASS**（`-run '^(…)$/mysql'`，见 §6.3 命令） |
 | **MySQL：真实二进制部署** | 冷启动建表 → 二次/三次启动 **0 条 DDL**（general log 实测）、数据存活、schema/索引指纹字节一致 |
 | **MySQL：首页风格开关端到端** | 无 option 行 → `/api/status` 返回 `classic`；非法值 `landing-v3`/空串被拒且不落库；`landing-v2` 落库并下发；删行重启仍 `classic`；`options` 表列数仍为 2（**0 DDL**） |
@@ -590,7 +594,7 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 
 ### 6.3 未验证项（如实声明）
 
-- ~~**MySQL / PostgreSQL 未实测**~~ → **MySQL 已实测通过**。环境与证据如下（可复现）：
+- ~~**MySQL / PostgreSQL 未实测**~~ → **MySQL 与 PostgreSQL 均已实测通过**。环境与证据如下（可复现）：
   - **环境**：Ubuntu 24.04.4 LTS + **MySQL 8.0.46-0ubuntu0.24.04.4**，`caching_sha2_password`，服务端字符集 `utf8mb4` / `utf8mb4_0900_ai_ci`，`sql_mode` 含 `ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION`。用户 `newapi` 需有建库权限（矩阵测试各自创建一次性库）。
   - **部署与迁移**：冷启动建出 **37 张表**；`affiliate_rewards` 为 `id bigint auto_increment PK` / `reference varchar(160) NOT NULL UNI` / `user_id bigint NOT NULL MUL` / `reward_quota bigint NOT NULL` / `created_at bigint NULL`；重复 `reference` → `ERROR 1062 (23000) Duplicate entry 'dup-ref-1' for key 'affiliate_rewards.idx_affiliate_rewards_reference'`。
   - **迁移幂等性**：第 2、3 次启动的 schema 指纹（445 行列）与索引指纹（216 行）**逐字节一致**，general query log 捕获到的 DDL 语句数为 **0**，数据存活（users/channels/tokens/options 计数不变）。
@@ -609,10 +613,14 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
        -run '^(TestPreConsumePolicyDatabaseMatrix|TestRequestPolicyRoutingDatabaseMatrix|TestModelPricingConversionDatabaseMatrix|TestModelManagementDatabaseMatrix|TestVendorManagementDatabaseMatrix|TestModelDeletionDatabaseMatrix|TestSharedModelPluginPricingDatabaseMatrix|TestDeleteRedemptionBatch|TestAuditDatabaseMatrix|TestAPITokenAuditDatabaseMatrix|TestMigrationSchemaStability|TestInferencePresetSettingsAndDatabaseRoundTrip)$/mysql'
      # → subtest PASS: 202  FAIL: 0
      ```
-- **PostgreSQL 仍未实测**：无 PG 环境。本次未引入 PG 特有写法，但**没有** PG 实测证据。
+- **PostgreSQL 已实测（2026-10-11，prod-server-u22）**：PostgreSQL **14.24**（Ubuntu 14.24-0ubuntu0.22.04.1）。
+  - 真实二进制 + 真实 PG：冷启动建表 **39 张表** → `/api/setup` 建管理员成功 → 登录成功 → `users` 表落库 1 行。
+  - 连续 **3 次**启动（第 2、3 次为升级场景）：`information_schema.columns` 指纹与 `pg_indexes` 指纹**字节一致**（`b8e7ed1157ea60b6` / `b8d7f55da41a7235`），`SCHEMA_STABLE=YES`。
+  - 命令：`SQL_DSN='postgresql://newapi:***@127.0.0.1:5432/newapi_pg' PORT=31236 /tmp/newapi-bin`。
   - 代码侧依据：`affiliate_rewards` 用标准 GORM 定义（`varchar(160)` + `uniqueIndex`），
     未使用方言特有类型、函数或 `ALTER COLUMN`；并发幂等靠 `uniqueIndex` 兜底，三种方言语义一致。
 - **`-race` 不可用**：`go: -race requires cgo`。并发幂等性通过行为测试证明（16 goroutine → 1 成功 / 15 拒绝 / 1 条流水 / 额度只入账一次）。唯一索引存在性另用 GORM `GetIndexes` 直接查过：`idx_affiliate_rewards_reference unique=true`。
+  - **PostgreSQL 14.24 复验（2026-10-11，prod-server-u22）**：冷启动建出 **39 张表**，`/api/setup` + 登录 + 落库成功；第 2、3 次启动后列指纹与索引指纹字节一致，`SCHEMA_STABLE=YES`。
 - **真实浏览器 + 真实后端未跑**：前端验证止于 DOM 行为与提交 payload 层。
 - **但「真实二进制 + 真实 MySQL + 真实 HTTP」已跑**（本次首页风格开关的上线前验证，见 §6.1 末行）：Linux/amd64 交叉编译产物在测试机连真 MySQL 冷启动 → `/api/setup` 建管理员 → 登录取 JWT → `PUT /api/option/` 改 `HomePageStyle` → `GET /api/status` 与 `GET /api/option/` 双向核对 → 删行重启复验。**仍未做的是浏览器 UI 点击**（jsdom 已覆盖交互与 payload，但没人在真浏览器里点过下拉框）。
 - **流式伪 200 跨帧漏检**：已实测并在 B11 节记录，**刻意未修**（见 B11「已知限制」）。
@@ -678,7 +686,7 @@ go test ./controller/ ./model/ -count=1 -timeout 60m -v \
 | GitHub 远端 | `https://github.com/NKBaa/new-api.git`（分支 `main`） |
 
 - 仓库内旧文档 `PORTING_GUIDE.md`（称「10 大业务、99 文件」，未涵盖业务十一）**已删除**，唯一权威替代品就是本手册。
-- **已推送 GitHub**：全程 **fast-forward**（非强推）、**0 删除**；并**保留** GitHub 侧既有文件 `.github/workflows/docker-image.yml`（push 到 `main` 自动构建镜像）、`UPGRADE_GUIDE.md`、`VERSION`（现为 `v1.0.0-rc.42`）。`main` 与本地 `HEAD` 一致（用 `git log --oneline github/main..HEAD` 应为空来自查）。
+- **已推送 GitHub**：全程 **fast-forward**（非强推）、**0 删除**；并**保留** GitHub 侧既有文件 `.github/workflows/docker-image.yml`（push 到 `main` 自动构建镜像）、`UPGRADE_GUIDE.md`、`VERSION`（现为 `v1.0.0-rc.43`）。`main` 与本地 `HEAD` 一致（用 `git log --oneline origin/main..HEAD` 应为空来自查）。
 - 本地旧版本（`new-api-clean/`、`node_modules/` 残留、3 个旧 `.patch`）已按要求清理，清理前全部内容已归档（见下表，零额外磁盘占用）。
 - **历史事故备忘**：原 `PORTING_NOTES.md` 一度被 `Get-Content -Raw` 以 GBK 误读 UTF-8 再写回，全角标点不可逆丢失；当时用 GBK 逆向解码恢复了全部结构、代码、命令与事实。该文件现已并入本手册，**同样的事故不会再影响独立副本（因为副本已不存在）**，但**教训仍然有效：不要用 PowerShell 直接读写本仓库的 UTF-8 中文文档**，改用 `write`/`edit` 工具或 `bun` 脚本。
 
