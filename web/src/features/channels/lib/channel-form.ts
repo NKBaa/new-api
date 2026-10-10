@@ -272,6 +272,7 @@ export const channelFormSchema = z
     pseudo_200_enabled: z.boolean().optional(),
     pseudo_200_custom_keywords: z.string().optional(),
     pseudo_200_rules: z.string().optional(),
+    tls_insecure_skip_verify: z.boolean().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     responses_websocket_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
@@ -466,6 +467,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pseudo_200_enabled: false,
   pseudo_200_custom_keywords: '',
   pseudo_200_rules: '',
+  tls_insecure_skip_verify: false,
   pass_through_body_enabled: false,
   responses_websocket_enabled: false,
   system_prompt: '',
@@ -513,6 +515,7 @@ export function transformChannelToFormDefaults(
     pseudo_200_enabled: false,
     pseudo_200_custom_keywords: '',
     pseudo_200_rules: '',
+    tls_insecure_skip_verify: false,
     pass_through_body_enabled: false,
     responses_websocket_enabled: false,
     system_prompt: '',
@@ -537,6 +540,7 @@ export function transformChannelToFormDefaults(
         pseudo_200_enabled: parsed.pseudo_200_enabled === true,
         pseudo_200_custom_keywords: parsed.pseudo_200_custom_keywords || '',
         pseudo_200_rules: parsed.pseudo_200_rules || '',
+        tls_insecure_skip_verify: parsed.tls_insecure_skip_verify === true,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         responses_websocket_enabled:
           parsed.responses_websocket_enabled === true,
@@ -692,6 +696,9 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     settingObj.http_protocol = HTTP_PROTOCOL_HTTP1
   } else if (shards > 1) {
     settingObj.http2_connection_shards = shards
+  }
+  if (formData.tls_insecure_skip_verify === true) {
+    settingObj.tls_insecure_skip_verify = true
   }
 
   return JSON.stringify(settingObj)

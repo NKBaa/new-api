@@ -47,6 +47,9 @@ type ChannelSettings struct {
 	// built-in table is used, so channels enabled before this field existed keep
 	// detecting. Ignored unless Pseudo200Enabled is set.
 	Pseudo200Rules string `json:"pseudo_200_rules,omitempty"`
+	// TLSInsecureSkipVerify accepts upstream certificates that fail
+	// verification, such as self-signed ones, for this channel only.
+	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,

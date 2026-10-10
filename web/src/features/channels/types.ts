@@ -94,6 +94,7 @@ export interface ChannelSettings {
   pseudo_200_enabled?: boolean
   pseudo_200_custom_keywords?: string
   pseudo_200_rules?: string
+  tls_insecure_skip_verify?: boolean
 }
 
 export interface ChannelOtherSettings {
