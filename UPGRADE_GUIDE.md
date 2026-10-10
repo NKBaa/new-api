@@ -514,14 +514,14 @@ cd web && bun run typecheck && bun x vitest run --pool=threads
 ## 5. 部署要点
 
 - **端口/环境**：沿用官方；本仓库未新增必需环境变量。
-- **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（**当前 `v1.0.0-rc.42`**）。`.github/workflows/docker-image.yml` 的 `paths` **包含 `VERSION`**，所以改它就会触发一次镜像构建。**不要清空**。版本号与代码的关系：`v1.0.0-rc.42` 对应官方提交 `6370b2942`，而我们已含该提交及其之前全部官方提交，因此 `rc.42` 是"不低于"实际代码的准确说法；后续再同步官方时**记得同步抬高这个号**。
+- **`VERSION`**：Dockerfile 用它注入前端与 Go 版本号（**当前 `v1.0.0-rc.43`**）。`.github/workflows/docker-image.yml` 的 `paths` **包含 `VERSION`**，所以改它就会触发一次镜像构建。**不要清空**。版本号与代码的关系：`v1.0.0-rc.42` 对应官方提交 `6370b2942`，而我们已含该提交及其之前全部官方提交，因此 `rc.42` 是"不低于"实际代码的准确说法；后续再同步官方时**记得同步抬高这个号**。
 - **三方言**：本次未引入任何方言特有能力；`affiliate_rewards` 用标准 GORM 定义。
   - **MySQL 已实测**：Ubuntu 24.04 + **MySQL 8.0.46**（`caching_sha2_password`、`utf8mb4_0900_ai_ci`、`ONLY_FULL_GROUP_BY` + `STRICT_TRANS_TABLES`），真实二进制部署 + 建表 + 13 项功能 + 官方 MySQL 数据库矩阵测试（见 §6.1 / §6.3）。
-  - PostgreSQL 仍未实测（本次未引入 PG 特有写法）。
+  - **PostgreSQL 已实测**：prod-server-u22 使用 PostgreSQL 14 完成首次及二次启动迁移，`/api/setup` 正常返回。
 - **镜像**：`ghcr.io/nkbaa/new-api:latest`（push 到 main 由 `docker-image.yml` 自动构建，多架构 amd64+arm64）。
-  - **✅ 当前 `latest` 已包含 `v1.0.0-rc.42` 合并**：对应提交 `0c05b1995`，构建 run `37780559377`（run number 97），**success**，16 分 22 秒，摘要 `sha256:15eedde357395fae558d82fdefce5e70f10d55043fd8bb0c2270d7351eef28da`。**14 项业务 + 官方 `v1.0.0-rc.42` 全部 20 个提交（含 `tokenkit` 模块、多厂商 Web Search 计费、Google Search grounding 计费）+ 错误映射冲突高亮与保存拦截 + 未匹配错误原文保留 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订，全都在里面。**
+  - 当前发布提交为 `cc956ca69`，GitHub Actions 运行 `38067264440` 正在构建；完成后将回填最终 conclusion、运行时长和多架构镜像摘要。**14 项业务 + 官方 `v1.0.0-rc.42` 全部 20 个提交（含 `tokenkit` 模块、多厂商 Web Search 计费、Google Search grounding 计费）+ 错误映射冲突高亮与保存拦截 + 未匹配错误原文保留 + 首页风格开关 + 下拉框宽度修复 + B13-r1 弹窗修订，全都在里面。**
   - **验证方法（可复现）**：侧边栏点聊天应用 → **弹出选 Key 窗口** → 业务十三已就绪（这是最直接的判据，因为业务十三**没有后端接口变化**，`/api/status` 无法区分新旧镜像）；弹窗宽度 448px、选项是**裸单选行** → 是 B13-r1 之前的旧镜像，**512px 卡片式选项 + 选中整行高亮** → B13-r1 已就绪；`curl /api/status` 有 `home_page_style` 字段 → 首页风格开关已就绪；后台「系统设置 → 站点 → 系统信息」展开「Home Page Style」下拉，第二项文案完整不被截断 → 宽度修复已就绪；后台「设置 → 安全」里出现**可按权限分配的新访问令牌**（而不是旧的单个系统令牌）→ 官方 20 个提交已就绪；后台「系统设置 → 请求策略」新增两条相同或重叠关键词规则 → 立即高亮红色 Badge 并拦截保存；`docker run --rm ghcr.io/nkbaa/new-api:latest --version` 应输出 **`v1.0.0-rc.42`** → 版本号已抬高。
-  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`（应输出上面的 `15eedde3…`）。
+  - **摘要自查命令**：`docker buildx imagetools inspect ghcr.io/nkbaa/new-api:latest`；应核对提交 `cc956ca69` 对应的多架构摘要。
   - **路径过滤器的行为（已实测，别误解）**：`docker-image.yml` 的 `paths` 只含代码目录（`*.go`、`web/**`、`relaykit/**` 等），**不含 `*.md`**。判定依据是**整次 push 涉及的文件集合**，不是最后一个提交：
     - 只包含文档提交的 push → **不触发**。实例：`0d87a54ea`、`bc47442ee` 两次 push 在 Actions 里**都没有任何 run**。
     - push 里**只要含一个**改了代码的提交 → 触发，且 run 的 `head_sha` 记在**该次 push 的最后一个提交**上。**因此不能只看 `head_sha` 判断"这个提交是否改了代码"** —— 例如 run `36325552289` 的 `head_sha` 是纯文档提交 `88d694850`，但它是因为同一次 push 里带了 `309b9b4f6`（首页风格开关，改了 `*.go` 与 `web/**`）才触发的，它构建出来的镜像里包含 `309b9b4f6` 的代码。
