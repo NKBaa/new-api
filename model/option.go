@@ -155,6 +155,7 @@ func InitOptionMap() {
 	common.OptionMap["DefaultThemeSettings"] = ""
 	common.OptionMap["ErrorSanitizationEnabled"] = strconv.FormatBool(common.ErrorSanitizationEnabled)
 	common.OptionMap["ErrorMappingRules"] = common.ErrorMappingRules
+	common.OptionMap["APIErrorDefaultLanguage"] = common.GetAPIErrorDefaultLanguage()
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -254,6 +255,13 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "APIErrorDefaultLanguage" {
+		switch value {
+		case "zh-CN", "zh-TW", "en":
+		default:
+			return fmt.Errorf("unsupported API error default language")
+		}
 	}
 	if key == "ErrorMappingRules" {
 		if strings.TrimSpace(value) != "" {
@@ -701,6 +709,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SetAffiliateCommissionRate(parsed)
 		}
 	case "AffiliateDescription":
+	case "APIErrorDefaultLanguage":
+		common.SetAPIErrorDefaultLanguage(value)
 	case "ErrorMappingRules":
 		common.UpdateErrorMappingRules(value)
 	case "MaxRegisterNumPerIP":

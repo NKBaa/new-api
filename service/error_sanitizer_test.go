@@ -20,11 +20,13 @@ package service
 
 import (
 	"errors"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -174,6 +176,36 @@ func TestSanitizeRelayErrorDisabled(t *testing.T) {
 	common.ErrorSanitizationEnabled = true
 }
 
+func TestSanitizeRelayErrorCustomRuleLanguageAndDefault(t *testing.T) {
+	common.ErrorSanitizationEnabled = true
+	common.SetAPIErrorDefaultLanguage("en")
+	common.ErrorMappingRules = `[{"id":99,"name":"Language Rule","match_code":500,"keywords":"localized_error","replace_msg":"fallback","replace_messages":{"zh-CN":"中文文案","zh-TW":"繁中案","en":"English message"},"enabled":true}]`
+	cachedRulesJSON = ""
+	apiErr := types.NewOpenAIError(errors.New("localized_error"), types.ErrorCodeBadResponseStatusCode, 500)
+	SanitizeRelayError(nil, apiErr)
+	assert.Equal(t, "English message", apiErr.Error())
+	common.SetAPIErrorDefaultLanguage("zh-CN")
+	common.ErrorMappingRules = ""
+	cachedRulesJSON = ""
+}
+
+func TestSanitizeRelayErrorUsesRequestLanguage(t *testing.T) {
+	common.ErrorSanitizationEnabled = true
+	common.SetAPIErrorDefaultLanguage("en")
+	common.ErrorMappingRules = `[{"id":100,"name":"Language Rule","match_code":500,"keywords":"localized_error","replace_msg":"fallback","replace_messages":{"zh-CN":"中文文案","zh-TW":"繁中案","en":"English message"},"enabled":true}]`
+	cachedRulesJSON = ""
+	request := httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	request.Header.Set("Accept-Language", "zh-TW")
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = request
+	apiErr := types.NewOpenAIError(errors.New("localized_error"), types.ErrorCodeBadResponseStatusCode, 500)
+	SanitizeRelayError(context, apiErr)
+	assert.Equal(t, "繁中案", apiErr.Error())
+	common.SetAPIErrorDefaultLanguage("zh-CN")
+	common.ErrorMappingRules = ""
+	cachedRulesJSON = ""
+}
+
 func TestSanitizeRelayErrorCustomRules(t *testing.T) {
 	common.ErrorSanitizationEnabled = true
 	common.ErrorMappingRules = `[
@@ -285,22 +317,18 @@ func TestSanitizeRelayErrorFieldsAndUnknown400(t *testing.T) {
 
 	SanitizeRelayError(nil, apiErr)
 
-	// Verify error string is clean
-	assert.Equal(t, "请求参数无效或不被上游模型支持，请检查请求配置。", apiErr.Error())
-	assert.NotContains(t, apiErr.Error(), "azure")
-	assert.NotContains(t, apiErr.Error(), "rg-ai-eastus")
-
-	// Verify OpenAI error fields are normalized and leak-free
+	// Unmatched errors preserve the upstream message and fields according to the
+	// administrator-configured pass-through behavior.
+	assert.Equal(t, raw400, apiErr.Error())
 	oai := apiErr.ToOpenAIError()
-	assert.Equal(t, "请求参数无效或不被上游模型支持，请检查请求配置。", oai.Message)
+	assert.Equal(t, raw400, oai.Message)
 	assert.Equal(t, "invalid_request_error", oai.Type)
 	assert.Equal(t, "", oai.Param)
 	assert.Equal(t, "invalid_request_error", oai.Code)
 	assert.Nil(t, oai.Metadata)
 
-	// Verify Claude error serialization is standard
 	claudeErr := apiErr.ToClaudeError()
-	assert.Equal(t, "请求参数无效或不被上游模型支持，请检查请求配置。", claudeErr.Message)
+	assert.Equal(t, raw400, claudeErr.Message)
 	assert.Equal(t, "invalid_request_error", claudeErr.Type)
 
 	// 2. Upstream 429 error with dirty provider-specific fields

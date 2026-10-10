@@ -138,6 +138,19 @@ var AutomaticEnableChannelEnabled = false
 var QuotaRemindThreshold = 1000
 var ErrorSanitizationEnabled = true
 var ErrorMappingRules = ""
+var APIErrorDefaultLanguage = "zh-CN"
+
+func GetAPIErrorDefaultLanguage() string {
+	customConfigRWMutex.RLock()
+	defer customConfigRWMutex.RUnlock()
+	return APIErrorDefaultLanguage
+}
+
+func SetAPIErrorDefaultLanguage(language string) {
+	customConfigRWMutex.Lock()
+	defer customConfigRWMutex.Unlock()
+	APIErrorDefaultLanguage = language
+}
 
 var customConfigRWMutex sync.RWMutex
 

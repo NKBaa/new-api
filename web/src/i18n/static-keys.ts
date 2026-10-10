@@ -20,6 +20,15 @@ For commercial licensing, please contact support@quantumnous.com
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
   'Error Sanitization',
+  'API default error language',
+  'Simplified Chinese',
+  'Traditional Chinese',
+  'Simplified Chinese message',
+  'Traditional Chinese message',
+  'English message',
+  'Used when the API request does not specify a language.',
+  'Leave empty to use the fallback message',
+  'This explanation is the fallback when no manual language text is configured.',
   'Task usage metadata is unavailable. Pricing details cannot be displayed.',
   'This expression cannot be expanded into a price table. View the original expression below.',
   'This operation is only supported for vLLM or SGLang channels',

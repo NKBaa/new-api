@@ -299,7 +299,7 @@ func TestDoCheckinAntiAbuseControls(t *testing.T) {
 		var resp map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.True(t, resp["success"].(bool), fmt.Sprintf("failed response: %v", resp))
-		assert.Equal(t, "签到成功", resp["message"].(string))
+		assert.Equal(t, "Check-in successful", resp["message"].(string))
 	})
 
 	t.Run("Blocked by MaxCheckinPerIP limit", func(t *testing.T) {

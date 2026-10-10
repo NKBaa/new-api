@@ -56,6 +56,7 @@ const POLICY_SECTIONS = [
       <ErrorMappingSection
         defaultEnabled={settings.ErrorSanitizationEnabled}
         defaultRules={settings.ErrorMappingRules}
+        defaultLanguage={settings.APIErrorDefaultLanguage}
       />
     ),
   },

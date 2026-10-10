@@ -404,6 +404,7 @@ export interface ErrorMappingRule {
   match_code: number
   keywords: string
   replace_msg: string
+  replace_messages?: Partial<Record<'zh-CN' | 'zh-TW' | 'en', string>>
   override_code: number
   enabled: boolean
 }

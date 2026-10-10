@@ -387,7 +387,7 @@ describe('request policy settings', () => {
     expect(screen.queryByText('Conflicting rules (1)')).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
-    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(3))
   })
 
   it('the affinity cache section opens with the keyboard and keeps the existing values', async () => {

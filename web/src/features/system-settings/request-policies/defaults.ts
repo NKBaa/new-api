@@ -44,6 +44,7 @@ export type FilteringSettings = Pick<
 export type ErrorMappingSettings = {
   ErrorSanitizationEnabled: boolean
   ErrorMappingRules: string
+  APIErrorDefaultLanguage: 'zh-CN' | 'zh-TW' | 'en'
 }
 export type RequestPolicySettings = RetrySettings &
   HealthSettings &
@@ -76,4 +77,5 @@ export const defaultRequestPolicySettings: RequestPolicySettings = {
   SensitiveWords: '',
   ErrorSanitizationEnabled: true,
   ErrorMappingRules: '',
+  APIErrorDefaultLanguage: 'zh-CN',
 }

@@ -198,6 +198,16 @@ function normalizeRulesFromJson(raw: unknown): ErrorMappingRule[] {
         typeof item.override_code === 'number'
           ? item.override_code
           : Number(item.override_code) || 0,
+      replace_messages:
+        item.replace_messages && typeof item.replace_messages === 'object'
+          ? Object.fromEntries(
+              Object.entries(item.replace_messages).filter(
+                ([language, message]) =>
+                  ['zh-CN', 'zh-TW', 'en'].includes(language) &&
+                  typeof message === 'string'
+              )
+            )
+          : undefined,
       enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
     }
   })
@@ -206,16 +216,19 @@ function normalizeRulesFromJson(raw: unknown): ErrorMappingRule[] {
 interface ErrorMappingSectionProps {
   defaultEnabled?: boolean
   defaultRules?: string
+  defaultLanguage?: 'zh-CN' | 'zh-TW' | 'en'
 }
 
 export function ErrorMappingSection({
   defaultEnabled = true,
   defaultRules = '',
+  defaultLanguage: initialDefaultLanguage = 'zh-CN',
 }: ErrorMappingSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const [enabled, setEnabled] = useState<boolean>(defaultEnabled)
+  const [defaultLanguage, setDefaultLanguage] = useState(initialDefaultLanguage)
   const [rules, setRules] = useState<ErrorMappingRule[]>(() => {
     const trimmed = (defaultRules || '').trim()
     if (!trimmed || trimmed === '[]') {
@@ -248,6 +261,11 @@ export function ErrorMappingSection({
   const [draftMatchCode, setDraftMatchCode] = useState('0')
   const [draftKeywords, setDraftKeywords] = useState('')
   const [draftReplaceMsg, setDraftReplaceMsg] = useState('')
+  const [draftReplaceMessages, setDraftReplaceMessages] = useState({
+    'zh-CN': '',
+    'zh-TW': '',
+    en: '',
+  })
   const [draftOverrideCode, setDraftOverrideCode] = useState('0')
   const [draftEnabled, setDraftEnabled] = useState(true)
 
@@ -279,6 +297,7 @@ export function ErrorMappingSection({
     setDraftMatchCode('0')
     setDraftKeywords('')
     setDraftReplaceMsg('')
+    setDraftReplaceMessages({ 'zh-CN': '', 'zh-TW': '', en: '' })
     setDraftOverrideCode('0')
     setDraftEnabled(true)
     setIsDialogOpen(true)
@@ -290,6 +309,11 @@ export function ErrorMappingSection({
     setDraftMatchCode(String(rule.match_code ?? 0))
     setDraftKeywords(rule.keywords || '')
     setDraftReplaceMsg(rule.replace_msg || '')
+    setDraftReplaceMessages({
+      'zh-CN': rule.replace_messages?.['zh-CN'] || '',
+      'zh-TW': rule.replace_messages?.['zh-TW'] || '',
+      en: rule.replace_messages?.en || '',
+    })
     setDraftOverrideCode(String(rule.override_code ?? 0))
     setDraftEnabled(rule.enabled ?? true)
     setIsDialogOpen(true)
@@ -309,6 +333,9 @@ export function ErrorMappingSection({
 
     const matchCodeNum = Number.parseInt(draftMatchCode, 10) || 0
     const overrideCodeNum = Number.parseInt(draftOverrideCode, 10) || 0
+    const replaceMessages = Object.fromEntries(
+      Object.entries(draftReplaceMessages).filter(([, message]) => message.trim())
+    )
 
     if (editingRule) {
       setRules((prev) =>
@@ -320,6 +347,7 @@ export function ErrorMappingSection({
                 match_code: matchCodeNum,
                 keywords: draftKeywords.trim(),
                 replace_msg: trimmedReplaceMsg,
+                replace_messages: replaceMessages,
                 override_code: overrideCodeNum,
                 enabled: draftEnabled,
               }
@@ -395,6 +423,10 @@ export function ErrorMappingSection({
         key: 'ErrorMappingRules',
         value: JSON.stringify(rulesToPersist),
       })
+      await updateOption.mutateAsync({
+        key: 'APIErrorDefaultLanguage',
+        value: defaultLanguage,
+      })
       toast.success(t('Settings saved successfully'))
     } catch (error) {
       handleServerError(error, t('Failed to save settings'))
@@ -450,6 +482,29 @@ export function ErrorMappingSection({
             {t(
               'Sanitize upstream provider errors to prevent leaking raw internal addresses, credentials, and organizations, returning standardized error causes to clients.'
             )}
+          </p>
+        </div>
+        <div className='grid max-w-md gap-2'>
+          <Label htmlFor='api-error-default-language'>
+            {t('API default error language')}
+          </Label>
+          <select
+            id='api-error-default-language'
+            className='border-input bg-background rounded-md border px-3 py-2 text-sm'
+            value={defaultLanguage}
+            onChange={(event) => {
+              const language = event.target.value
+              if (language === 'zh-CN' || language === 'zh-TW' || language === 'en') {
+                setDefaultLanguage(language)
+              }
+            }}
+          >
+            <option value='zh-CN'>{t('Simplified Chinese')}</option>
+            <option value='zh-TW'>{t('Traditional Chinese')}</option>
+            <option value='en'>{t('English')}</option>
+          </select>
+          <p className='text-muted-foreground text-xs'>
+            {t('Used when the API request does not specify a language.')}
           </p>
         </div>
         <SettingsPageFormActions
@@ -814,10 +869,34 @@ export function ErrorMappingSection({
               />
               <span className='text-muted-foreground text-xs'>
                 {t(
-                  'This explanation will be returned to the client as the sanitized cause.'
+                  'This explanation is the fallback when no manual language text is configured.'
                 )}
               </span>
             </div>
+
+            {(['zh-CN', 'zh-TW', 'en'] as const).map((language) => (
+              <div className='grid gap-2' key={language}>
+                <Label htmlFor={`rule-replace-msg-${language}`}>
+                  {language === 'zh-CN'
+                    ? t('Simplified Chinese message')
+                    : language === 'zh-TW'
+                      ? t('Traditional Chinese message')
+                      : t('English message')}
+                </Label>
+                <Textarea
+                  id={`rule-replace-msg-${language}`}
+                  rows={2}
+                  value={draftReplaceMessages[language]}
+                  onChange={(event) =>
+                    setDraftReplaceMessages((current) => ({
+                      ...current,
+                      [language]: event.target.value,
+                    }))
+                  }
+                  placeholder={t('Leave empty to use the fallback message')}
+                />
+              </div>
+            ))}
 
             <div className='flex items-center justify-between pt-2'>
               <Label htmlFor='rule-enabled'>{t('Enable this rule')}</Label>

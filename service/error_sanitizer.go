@@ -39,7 +39,7 @@ var (
 
 // DefaultErrorMappingRules returns the pre-seeded rules covering common upstream errors
 // including all 11 user-specified production error scenarios.
-// 每条预设同时给出 MessageKey（按调用方语言下发）与 ReplaceMsg（翻译缺失时的兜底原文）。
+// ReplaceMsg is returned verbatim; administrator-authored messages are not translated.
 func DefaultErrorMappingRules() []common.ErrorMappingRule {
 	return []common.ErrorMappingRule{
 		{
@@ -48,7 +48,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    0,
 			Keywords:     "Embeddings API is not supported, not supported for this platform",
 			ReplaceMsg:   "当前模型不支持 Embeddings 操作，请检查所选模型。",
-			MessageKey:   i18n.MsgSanitizeEmbeddingsUnsupported,
 			OverrideCode: http.StatusBadRequest,
 			Enabled:      true,
 		},
@@ -58,7 +57,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    0,
 			Keywords:     "不安全或敏感内容, 易产生敏感内容的提示语, sensitive content, content_filter, prompt was filtered",
 			ReplaceMsg:   "输入或生成内容触发安全合规策略，请调整提示词后重试。",
-			MessageKey:   i18n.MsgSanitizeSensitiveContent,
 			OverrideCode: http.StatusBadRequest,
 			Enabled:      true,
 		},
@@ -68,7 +66,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    0,
 			Keywords:     "currently experiencing high demand, spikes in demand, 当前分组负载已饱和, 负载已饱和, high traffic",
 			ReplaceMsg:   "当前模型服务请求量激增或高负载，请稍后重试。",
-			MessageKey:   i18n.MsgSanitizeUpstreamOverloaded,
 			OverrideCode: http.StatusServiceUnavailable,
 			Enabled:      true,
 		},
@@ -78,7 +75,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    0,
 			Keywords:     "User does not exist, organization does not exist",
 			ReplaceMsg:   "上游服务认证异常或账户不可用，请联系管理员。",
-			MessageKey:   i18n.MsgSanitizeUpstreamAccountMissing,
 			OverrideCode: http.StatusBadGateway,
 			Enabled:      true,
 		},
@@ -88,7 +84,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    0,
 			Keywords:     "not supported by any configured account in this group, no available channel",
 			ReplaceMsg:   "当前分组暂无支持该模型的可用渠道，请检查模型名称或更换分组。",
-			MessageKey:   i18n.MsgSanitizeNoAvailableChannel,
 			OverrideCode: http.StatusNotFound,
 			Enabled:      true,
 		},
@@ -98,7 +93,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    http.StatusServiceUnavailable,
 			Keywords:     "Service temporarily unavailable, temporarily unavailable, service unavailable",
 			ReplaceMsg:   "上游服务暂时不可用，请稍后重试。",
-			MessageKey:   i18n.MsgSanitizeServiceUnavailable,
 			OverrideCode: http.StatusServiceUnavailable,
 			Enabled:      true,
 		},
@@ -108,7 +102,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    http.StatusNotFound,
 			Keywords:     "Requested entity was not found, NOT_FOUND, model_not_found",
 			ReplaceMsg:   "请求的模型或上游资源未找到，请核对模型配置。",
-			MessageKey:   i18n.MsgSanitizeResourceNotFound,
 			OverrideCode: http.StatusNotFound,
 			Enabled:      true,
 		},
@@ -118,7 +111,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    0,
 			Keywords:     "exceeded your current quota, Quota exceeded, Resource has been exhausted, free_tier_reque, rate limit, quota",
 			ReplaceMsg:   "上游渠道配额已耗尽或超出调用频率限制，请稍后重试。",
-			MessageKey:   i18n.MsgSanitizeUpstreamQuotaExhausted,
 			OverrideCode: http.StatusTooManyRequests,
 			Enabled:      true,
 		},
@@ -128,7 +120,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    http.StatusBadRequest,
 			Keywords:     "context_length_exceeded, maximum context length, token count exceeds, prompt too long",
 			ReplaceMsg:   "提示词长度超出该模型上下文上限，请精简输入后重试。",
-			MessageKey:   i18n.MsgSanitizeContextLengthExceeded,
 			OverrideCode: http.StatusBadRequest,
 			Enabled:      true,
 		},
@@ -138,7 +129,6 @@ func DefaultErrorMappingRules() []common.ErrorMappingRule {
 			MatchCode:    http.StatusUnauthorized,
 			Keywords:     "invalid_api_key, incorrect api key, unauthorized, authentication failed",
 			ReplaceMsg:   "上游服务认证凭据已失效，请联系管理员处理。",
-			MessageKey:   i18n.MsgSanitizeUpstreamCredentialsInvalid,
 			OverrideCode: http.StatusBadGateway,
 			Enabled:      true,
 		},
@@ -195,9 +185,29 @@ func SplitKeywords(keywords string) []string {
 	return result
 }
 
+func configuredAPIErrorLanguage(c *gin.Context) string {
+	if language := i18n.StatedLang(c); language != "" {
+		return language
+	}
+	return common.GetAPIErrorDefaultLanguage()
+}
+
+func ruleReplacementMessage(c *gin.Context, rule common.ErrorMappingRule) string {
+	language := configuredAPIErrorLanguage(c)
+	if rule.ReplaceMessages != nil {
+		if message := strings.TrimSpace(rule.ReplaceMessages[language]); message != "" {
+			return rule.ReplaceMessages[language]
+		}
+		if message := strings.TrimSpace(rule.ReplaceMessages["en"]); message != "" {
+			return rule.ReplaceMessages["en"]
+		}
+	}
+	return rule.ReplaceMsg
+}
+
 // MatchErrorRule checks if statusCode and rawMsg match any active error mapping rule.
 // Returns (replaceMsg, overrideCode, true) if matched, or ("", 0, false) if no rule matched.
-// 内置预设（带 MessageKey）按调用方语言下发；自定义规则直接返回站长填写的原文。
+// Matched messages come only from manually configured language variants.
 func MatchErrorRule(c *gin.Context, statusCode int, rawMsg string) (string, int, bool) {
 	rules := GetEffectiveErrorMappingRules()
 	for _, rule := range rules {
@@ -210,7 +220,7 @@ func MatchErrorRule(c *gin.Context, statusCode int, rawMsg string) (string, int,
 		keywords := SplitKeywords(rule.Keywords)
 		if len(keywords) == 0 {
 			if rule.MatchCode > 0 && rule.MatchCode == statusCode {
-				return resolveRuleMessage(c, rule), rule.OverrideCode, true
+				return ruleReplacementMessage(c, rule), rule.OverrideCode, true
 			}
 			continue
 		}
@@ -223,29 +233,13 @@ func MatchErrorRule(c *gin.Context, statusCode int, rawMsg string) (string, int,
 			}
 		}
 		if matched {
-			return resolveRuleMessage(c, rule), rule.OverrideCode, true
+			return ruleReplacementMessage(c, rule), rule.OverrideCode, true
 		}
 	}
 	return "", 0, false
 }
 
-// resolveRuleMessage 把内置预设的 MessageKey 按调用方语言翻译；翻译缺失时回退到
-// 预设自带的 ReplaceMsg，绝不把 key 本身暴露给终端用户。自定义规则无 MessageKey，
-// 原样返回站长填写的内容。
-func resolveRuleMessage(c *gin.Context, rule common.ErrorMappingRule) string {
-	if rule.MessageKey == "" {
-		return rule.ReplaceMsg
-	}
-	translated := i18n.T(c, rule.MessageKey)
-	if translated == "" || translated == rule.MessageKey {
-		return rule.ReplaceMsg
-	}
-	return translated
-}
-
-// ClassifySmartFallback generates a safe, standardized fallback message based on HTTP status code and message patterns.
-// It guarantees that raw upstream technical strings (internal model names, deployment IDs, supplier details)
-// are never leaked to regular clients when no custom mapping rule matches.
+// ClassifySmartFallback generates a standardized fallback message for callers that opt into it.
 func ClassifySmartFallback(c *gin.Context, statusCode int, rawMsg string) string {
 	return translateFallbackKey(c, classifyFallbackKey(statusCode, rawMsg))
 }
@@ -291,7 +285,7 @@ func classifyFallbackKey(statusCode int, rawMsg string) string {
 	}
 }
 
-// fallbackDefaults 提供每个兜底 key 的中文原文，用于翻译缺失时兜底（绝不外泄 key）。
+// fallbackDefaults provides Chinese fallback text for callers that use ClassifySmartFallback.
 var fallbackDefaults = map[string]string{
 	i18n.MsgSanitizeFallbackRateLimited:      "上游服务请求过多或配额超限，请稍后重试。",
 	i18n.MsgSanitizeFallbackUnavailable:      "上游服务暂时不可用或网络异常，请稍后重试。",
